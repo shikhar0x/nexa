@@ -155,4 +155,4 @@ python3 -m unittest discover -s tests
 
 ## License
 
-MIT License
+This project is licensed under the terms of the [MIT License](LICENSE).
