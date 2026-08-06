@@ -7,6 +7,7 @@ from config.constants import (
     FILE_SEARCH_KEYWORDS,
     FILE_NOUNS,
     FILE_CONTENT_KEYWORDS,
+    FILE_READ_KEYWORDS,
     REMINDER_KEYWORDS,
     OPEN_KEYWORDS,
     RUN_KEYWORDS,
@@ -109,20 +110,29 @@ class IntentRouter:
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 9. File content search ───────────────────────────────
-        for kw in FILE_CONTENT_KEYWORDS:
+        # ── 9. File Reading (read, summarize, contents of, explain) ─
+        for kw in FILE_READ_KEYWORDS:
             if kw in text:
-                query = text
-                for k in FILE_CONTENT_KEYWORDS:
-                    query = query.replace(k, "")
+                extracted_path = self._extract_path(user_input, kw)
                 res = IntentResult(
-                    intent_name="FILE_CONTENT_SEARCH",
-                    args={"query": query.strip()},
+                    intent_name="FILE_READ",
+                    args={"path": extracted_path},
                 )
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 10. Reminder ──────────────────────────────────────────
+        # ── 10. File content search ───────────────────────────────
+        for kw in FILE_CONTENT_KEYWORDS:
+            if kw in text:
+                query, target_file = self._extract_content_search_args(user_input, kw)
+                res = IntentResult(
+                    intent_name="FILE_CONTENT_SEARCH",
+                    args={"query": query, "target_file": target_file},
+                )
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 11. Reminder ──────────────────────────────────────────
         for kw in REMINDER_KEYWORDS:
             if kw in text:
                 delay, message = self._parse_reminder(text)
@@ -133,19 +143,18 @@ class IntentRouter:
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 11. Open file ─────────────────────────────────────────
+        # ── 12. Open file ─────────────────────────────────────────
         for kw in OPEN_KEYWORDS:
             if text.startswith(kw + " "):
-                path = text[len(kw):].strip()
-                if "/" in path or "." in path or any(n in text for n in FILE_NOUNS):
-                    res = IntentResult(
-                        intent_name="OPEN_FILE",
-                        args={"path": user_input[len(kw):].strip()},
-                    )
-                    logger.debug(f"Classified '{user_input}' -> {res}")
-                    return res
+                path = user_input[len(kw):].strip()
+                res = IntentResult(
+                    intent_name="OPEN_FILE",
+                    args={"path": path},
+                )
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
 
-        # ── 12. Run command ───────────────────────────────────────
+        # ── 13. Run command ───────────────────────────────────────
         for kw in RUN_KEYWORDS:
             if text.startswith(kw + " "):
                 cmd = user_input[len(kw):].strip()
@@ -158,7 +167,7 @@ class IntentRouter:
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 13. File search ───────────────────────────────────────
+        # ── 14. File search (broad search) ────────────────────────
         for kw in FILE_SEARCH_KEYWORDS:
             if kw in text:
                 query = self._extract_file_query(text, kw)
@@ -186,6 +195,44 @@ class IntentRouter:
         res = IntentResult(intent_name="GENERAL")
         logger.debug(f"Classified '{user_input}' -> {res}")
         return res
+
+    def _extract_path(self, text: str, trigger_keyword: str) -> str:
+        # Check if an explicit absolute or relative path is present
+        match = re.search(r"(/[^\s]+|\~/[^\s]+|[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)", text)
+        if match:
+            return match.group(1).strip()
+
+        # Check for pronouns pointing to workspace active file
+        text_lower = text.lower()
+        if any(p in text_lower for p in ("this file", "it", "this document", "that document", "that file")):
+            return "active_file"
+
+        # Stripped text after trigger
+        clean = text
+        for kw in FILE_READ_KEYWORDS:
+            clean = re.sub(re.escape(kw), "", clean, flags=re.IGNORECASE)
+        return clean.strip()
+
+    def _extract_content_search_args(self, text: str, trigger_keyword: str) -> tuple[str, str]:
+        # Examples: "search for the word attribute inside /path/to/file.pdf"
+        # "search for attribute inside this file"
+        target_file = ""
+        path_match = re.search(r"inside\s+(/[^\s]+|\~/[^\s]+|[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)", text, re.IGNORECASE)
+        if path_match:
+            target_file = path_match.group(1).strip()
+        elif "inside this file" in text.lower() or "inside it" in text.lower():
+            target_file = "active_file"
+
+        clean = text
+        for kw in FILE_CONTENT_KEYWORDS:
+            clean = re.sub(re.escape(kw), "", clean, flags=re.IGNORECASE)
+
+        # Remove "for the word", "for", "inside X"
+        clean = re.sub(r"for\s+the\s+word\s+", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"for\s+", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"inside\s+.*", "", clean, flags=re.IGNORECASE)
+
+        return clean.strip(), target_file
 
     def _extract_file_query(self, text: str, trigger_keyword: str) -> str:
         filler_words = {

@@ -12,9 +12,18 @@ class OpenFileSkill(BaseSkill):
     permissions = ["CONFIRM_REQUIRED", "EXECUTE_APP"]
 
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
-        path = args.get("path", "")
+        path = args.get("path", "").strip()
+
+        # Resolve "this file", "it" from active_file in workspace_state
+        if not path or path.lower() in ("this file", "it", "that document", "this document"):
+            path = context.workspace_state.get("active_file", "")
+
         if not path:
-            return SkillResult(success=False, message="No path specified to open.", use_llm=False)
+            return SkillResult(
+                success=False,
+                message="No path specified to open, and no active file is set in workspace.",
+                use_llm=False,
+            )
 
         if not confirm_action(f"open '{path}' with your default application"):
             return SkillResult(
@@ -26,6 +35,7 @@ class OpenFileSkill(BaseSkill):
 
         try:
             os_adapter.open_file(path)
+            context.workspace_state["active_file"] = path
             return SkillResult(
                 success=True,
                 message=f"Opened '{path}'.",

@@ -23,6 +23,14 @@ FILE_CONTENT_KEYWORDS = {
     "search within", "look inside", "search in files",
 }
 
+FILE_READ_KEYWORDS = {
+    "read this file", "read file", "contents of", "what are the contents of",
+    "summarize pdf", "summarize file", "summarize this file", "summarize document",
+    "explain document", "explain this document", "what is inside", "read pdf",
+    "read document", "explain section", "explain this file", "summarize it",
+    "read it", "explain it", "read this", "read document",
+}
+
 REMINDER_KEYWORDS = {
     "remind me", "set reminder", "notify me", "alert me",
     "set a reminder", "reminder",
