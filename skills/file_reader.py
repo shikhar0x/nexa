@@ -29,7 +29,7 @@ class FileReaderSkill(BaseSkill):
     permissions = ["READ_FILES"]
 
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
-        path = args.get("path", "").strip()
+        path = args.get("path", "").strip().strip("'\"")
 
         # If path is empty or a pronoun/sentinel, check context.workspace_state for active_file
         if not path or path.lower() in ("active_file", "this file", "it", "that document", "this document"):
@@ -42,7 +42,12 @@ class FileReaderSkill(BaseSkill):
                 use_llm=False,  # Factual error bypasses LLM
             )
 
+        if path.startswith("home/"):
+            path = "/" + path
         path = os.path.expanduser(path)
+
+        if not os.path.exists(path) and os.path.exists("/" + path):
+            path = "/" + path
 
         if not os.path.exists(path):
             return SkillResult(

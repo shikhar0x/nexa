@@ -20,7 +20,7 @@ FILE_NOUNS = {
 
 FILE_CONTENT_KEYWORDS = {
     "search inside", "grep", "find in files", "search contents",
-    "search within", "look inside", "search in files",
+    "search within", "look inside", "search in files", "inside",
 }
 
 FILE_READ_KEYWORDS = {
@@ -28,7 +28,8 @@ FILE_READ_KEYWORDS = {
     "summarize pdf", "summarize file", "summarize this file", "summarize document",
     "explain document", "explain this document", "what is inside", "read pdf",
     "read document", "explain section", "explain this file", "summarize it",
-    "read it", "explain it", "read this", "read document",
+    "read it", "explain it", "read this", "read document", "summarize", "explain", "read",
+    "send", "show", "get", "print", "extract", "display",
 }
 
 REMINDER_KEYWORDS = {

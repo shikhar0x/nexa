@@ -110,10 +110,13 @@ class IntentRouter:
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 9. File Reading (read, summarize, contents of, explain) ─
+        # ── 9. File Reading (read, summarize, contents of, explain, send, show) ─
+        has_file_path = bool(re.search(r"(\b~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.(?:pdf|txt|md|py|js|ts|json|csv|html|css|cpp|c|java))\b", text))
         for kw in FILE_READ_KEYWORDS:
             if kw in text:
                 extracted_path = self._extract_path(user_input, kw)
+                if kw in ("send", "show", "get", "print") and not has_file_path and extracted_path not in ("active_file",):
+                    continue
                 res = IntentResult(
                     intent_name="FILE_READ",
                     args={"path": extracted_path},
@@ -146,7 +149,7 @@ class IntentRouter:
         # ── 12. Open file ─────────────────────────────────────────
         for kw in OPEN_KEYWORDS:
             if text.startswith(kw + " "):
-                path = user_input[len(kw):].strip()
+                path = self._extract_path(user_input[len(kw):].strip(), kw)
                 res = IntentResult(
                     intent_name="OPEN_FILE",
                     args={"path": path},
@@ -197,10 +200,13 @@ class IntentRouter:
         return res
 
     def _extract_path(self, text: str, trigger_keyword: str) -> str:
-        # Check if an explicit absolute or relative path is present
-        match = re.search(r"(/[^\s]+|\~/[^\s]+|[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)", text)
+        # Match path starting with /, ~/, home/, or standard filenames, stripping quotes
+        match = re.search(r"(?:^|\s)['\"]?(~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)['\"]?", text)
         if match:
-            return match.group(1).strip()
+            path = match.group(1).strip().strip("'\"")
+            if path.startswith("home/"):
+                path = "/" + path
+            return path
 
         # Check for pronouns pointing to workspace active file
         text_lower = text.lower()
@@ -211,28 +217,31 @@ class IntentRouter:
         clean = text
         for kw in FILE_READ_KEYWORDS:
             clean = re.sub(re.escape(kw), "", clean, flags=re.IGNORECASE)
-        return clean.strip()
+
+        clean_path = clean.strip().strip("'\"")
+        if clean_path.startswith("home/"):
+            clean_path = "/" + clean_path
+        return clean_path
 
     def _extract_content_search_args(self, text: str, trigger_keyword: str) -> tuple[str, str]:
-        # Examples: "search for the word attribute inside /path/to/file.pdf"
-        # "search for attribute inside this file"
         target_file = ""
-        path_match = re.search(r"inside\s+(/[^\s]+|\~/[^\s]+|[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)", text, re.IGNORECASE)
+        path_match = re.search(r"inside\s+['\"]?(~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)['\"]?", text, re.IGNORECASE)
         if path_match:
-            target_file = path_match.group(1).strip()
-        elif "inside this file" in text.lower() or "inside it" in text.lower():
+            target_file = path_match.group(1).strip().strip("'\"")
+            if target_file.startswith("home/"):
+                target_file = "/" + target_file
+        elif "inside this file" in text.lower() or "inside it" in text.lower() or "insid ethe file" in text.lower():
             target_file = "active_file"
 
         clean = text
         for kw in FILE_CONTENT_KEYWORDS:
             clean = re.sub(re.escape(kw), "", clean, flags=re.IGNORECASE)
 
-        # Remove "for the word", "for", "inside X"
         clean = re.sub(r"for\s+the\s+word\s+", "", clean, flags=re.IGNORECASE)
         clean = re.sub(r"for\s+", "", clean, flags=re.IGNORECASE)
         clean = re.sub(r"inside\s+.*", "", clean, flags=re.IGNORECASE)
 
-        return clean.strip(), target_file
+        return clean.strip().strip("'\""), target_file
 
     def _extract_file_query(self, text: str, trigger_keyword: str) -> str:
         filler_words = {
@@ -242,7 +251,7 @@ class IntentRouter:
         }
         words = text.split()
         filtered = [w for w in words if w.lower() not in filler_words]
-        query = " ".join(filtered).strip()
+        query = " ".join(filtered).strip().strip("'\"")
 
         generic_nouns = {"file", "files", "document", "documents", "folder", "folders"}
         stripped_words = [w for w in query.split() if w.lower() not in generic_nouns]
