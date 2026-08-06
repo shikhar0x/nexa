@@ -15,13 +15,14 @@ class ShellExecutionSkill(BaseSkill):
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
         command = args.get("command", "")
         if not command:
-            return SkillResult(success=False, message="No command provided.")
+            return SkillResult(success=False, message="No command provided.", use_llm=False)
 
         if not confirm_action(f"run shell command: {command}"):
             return SkillResult(
                 success=False,
                 message="Cancelled — command was not executed.",
                 data={"status": "cancelled", "command": command},
+                use_llm=False,
             )
 
         try:
@@ -36,16 +37,19 @@ class ShellExecutionSkill(BaseSkill):
                     "returncode": result.returncode,
                     "output": output,
                 },
+                use_llm=False,
             )
         except subprocess.TimeoutExpired:
             return SkillResult(
                 success=False,
                 message="Command timed out after 30 seconds.",
                 data={"command": command, "error": "timeout"},
+                use_llm=False,
             )
         except Exception as e:
             return SkillResult(
                 success=False,
                 message=f"Failed to run command: {e}",
                 data={"command": command, "error": str(e)},
+                use_llm=False,
             )

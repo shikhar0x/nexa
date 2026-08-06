@@ -12,8 +12,12 @@ class SkillRegistry:
         """Register a skill instance under its name."""
         self._skills[skill.name] = skill
 
+    def register_alias(self, alias_name: str, skill: BaseSkill) -> None:
+        """Register an alternative intent key mapping to a skill instance."""
+        self._skills[alias_name] = skill
+
     def get(self, name: str) -> Optional[BaseSkill]:
-        """Retrieve a registered skill by name."""
+        """Retrieve a registered skill by name or alias."""
         return self._skills.get(name)
 
     def list_skills(self) -> list[str]:

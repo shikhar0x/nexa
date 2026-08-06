@@ -9,6 +9,7 @@ class SkillResult:
     data: dict[str, Any] = field(default_factory=dict)
     message: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+    use_llm: bool = True  # If False, Dispatcher returns message directly without calling LLMEngine
 
 
 class BaseSkill:

@@ -9,6 +9,7 @@ from skills.file_search import FileSearchSkill, FileContentSearchSkill
 from skills.open_file import OpenFileSkill
 from skills.shell import ShellExecutionSkill
 from skills.notification import ReminderSkill
+from skills.memory_skill import MemorySkill
 from memory.service import MemoryService
 from infrastructure.scheduler import Scheduler
 from config.logger import logger
@@ -49,6 +50,19 @@ class Dispatcher:
         self.registry.register(ShellExecutionSkill())
         self.registry.register(ReminderSkill(scheduler=self.scheduler))
 
+        # Memory skill handles all memory intents
+        mem_skill = MemorySkill(memory_service=self.memory)
+        for intent_name in (
+            "MEMORY_STATS",
+            "MEMORY_LIST",
+            "MEMORY_SEARCH",
+            "MEMORY_EXPORT",
+            "MEMORY_DELETE",
+            "MEMORY_CLEAR",
+            "MEMORY_SUMMARIZE",
+        ):
+            self.registry.register_alias(intent_name, mem_skill)
+
     def process(self, user_input: str) -> str:
         """Process a single turn of user input through the system pipeline."""
         logger.info(f"Processing turn for input: '{user_input}'")
@@ -58,20 +72,24 @@ class Dispatcher:
 
         # 2. Context creation
         context = ConversationContext(user_input=user_input)
+        context.conversation_state["intent"] = intent.intent_name
 
-        # 3. Retrieve persistent memory context
-        context.memory_context = self.memory.get_context(user_input)
+        # 3. Retrieve persistent memory context (for non-memory intents or summarization)
+        if not intent.intent_name.startswith("MEMORY_"):
+            context.memory_context = self.memory.get_context(user_input)
 
         # 4. Dispatch to skill if registered
         skill = self.registry.get(intent.intent_name)
         if skill:
-            logger.info(f"Executing skill '{skill.name}' with args {intent.args}")
+            logger.info(f"Executing skill '{skill.name}' (intent '{intent.intent_name}') with args {intent.args}")
             result = skill.execute(intent.args, context)
             context.skill_result = result
 
-            if intent.intent_name in ("OPEN_FILE", "RUN_COMMAND"):
+            # Deterministic skills (use_llm = False) bypass LLM generation completely
+            if not result.use_llm:
                 self.memory.store_exchange(user_input, result.message)
-                return f"{result.message}"
+                logger.info(f"Bypassed LLM generation for deterministic intent '{intent.intent_name}'")
+                return result.message
 
         # 5. LLM Natural Language Generation
         response = self.llm.generate(context)

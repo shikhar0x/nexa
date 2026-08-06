@@ -3,7 +3,7 @@ Global system constants, keyword sets, and prompt templates.
 """
 
 SYSTEM_KEYWORDS = {
-    "battery", "cpu", "ram", "memory", "disk", "storage",
+    "battery", "cpu", "ram", "memory status", "disk", "storage",
     "system status", "temperature", "performance", "how's my",
     "how is my", "system info", "system health",
 }
@@ -31,6 +31,43 @@ REMINDER_KEYWORDS = {
 OPEN_KEYWORDS = {"open", "launch", "start"}
 
 RUN_KEYWORDS = {"run", "execute", "run command", "shell"}
+
+# ── Memory Subsystem Keywords ────────────────────────────────
+
+MEMORY_STATS_KEYWORDS = {
+    "what do you remember", "show my memories", "memory summary",
+    "memory stats", "memory statistics", "list everything you know",
+    "what is in your memory", "show stored memories",
+}
+
+MEMORY_LIST_KEYWORDS = {
+    "list memories", "list recent memories", "show recent conversations",
+}
+
+MEMORY_SEARCH_KEYWORDS = {
+    "search memory for", "search in memory for", "look up in memory",
+    "find in memory",
+}
+
+MEMORY_EXPORT_KEYWORDS = {
+    "export memory", "export all conversations", "export conversations",
+    "send me everything", "download memory",
+}
+
+MEMORY_DELETE_KEYWORDS = {
+    "forget", "delete memory about", "remove memory about", "delete memory",
+    "remove memory", "forget that",
+}
+
+MEMORY_CLEAR_KEYWORDS = {
+    "clear memory", "reset memory", "delete all memories", "delete everything you know",
+    "wipe memory", "clear all memories",
+}
+
+MEMORY_SUMMARIZE_KEYWORDS = {
+    "summarize what you know", "summarize memory", "summarize conversations",
+    "summarize everything about", "summarize my recent",
+}
 
 SYSTEM_PROMPT = (
     "You are Nexa, a personal desktop assistant with persistent memory. "

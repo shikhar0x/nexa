@@ -14,13 +14,14 @@ class OpenFileSkill(BaseSkill):
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
         path = args.get("path", "")
         if not path:
-            return SkillResult(success=False, message="No path specified to open.")
+            return SkillResult(success=False, message="No path specified to open.", use_llm=False)
 
         if not confirm_action(f"open '{path}' with your default application"):
             return SkillResult(
                 success=False,
                 message="Cancelled — file was not opened.",
                 data={"status": "cancelled", "path": path},
+                use_llm=False,
             )
 
         try:
@@ -29,10 +30,12 @@ class OpenFileSkill(BaseSkill):
                 success=True,
                 message=f"Opened '{path}'.",
                 data={"status": "opened", "path": path},
+                use_llm=False,
             )
         except Exception as e:
             return SkillResult(
                 success=False,
                 message=f"Failed to open: {e}",
                 data={"path": path, "error": str(e)},
+                use_llm=False,
             )

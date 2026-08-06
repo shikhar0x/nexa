@@ -10,6 +10,13 @@ from config.constants import (
     REMINDER_KEYWORDS,
     OPEN_KEYWORDS,
     RUN_KEYWORDS,
+    MEMORY_STATS_KEYWORDS,
+    MEMORY_LIST_KEYWORDS,
+    MEMORY_SEARCH_KEYWORDS,
+    MEMORY_EXPORT_KEYWORDS,
+    MEMORY_DELETE_KEYWORDS,
+    MEMORY_CLEAR_KEYWORDS,
+    MEMORY_SUMMARIZE_KEYWORDS,
 )
 from config.logger import logger
 
@@ -28,90 +35,157 @@ class IntentRouter:
     def classify(self, user_input: str) -> IntentResult:
         text = user_input.lower().strip()
 
-        # 1. System status
+        # ── 1. Memory Clear (check before general memory) ─────────
+        for kw in MEMORY_CLEAR_KEYWORDS:
+            if kw in text:
+                res = IntentResult(intent_name="MEMORY_CLEAR")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 2. Memory Export ─────────────────────────────────────
+        for kw in MEMORY_EXPORT_KEYWORDS:
+            if kw in text:
+                res = IntentResult(intent_name="MEMORY_EXPORT")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 3. Memory Summarize (AI reasoning over memory) ───────
+        for kw in MEMORY_SUMMARIZE_KEYWORDS:
+            if kw in text:
+                query = text
+                for k in MEMORY_SUMMARIZE_KEYWORDS:
+                    query = query.replace(k, "")
+                res = IntentResult(
+                    intent_name="MEMORY_SUMMARIZE",
+                    args={"query": query.strip()},
+                )
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 4. Memory Delete / Forget ─────────────────────────────
+        for kw in MEMORY_DELETE_KEYWORDS:
+            if kw in text:
+                query = text
+                for k in MEMORY_DELETE_KEYWORDS:
+                    query = query.replace(k, "")
+                res = IntentResult(
+                    intent_name="MEMORY_DELETE",
+                    args={"query": query.strip()},
+                )
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 5. Memory Search ─────────────────────────────────────
+        for kw in MEMORY_SEARCH_KEYWORDS:
+            if kw in text:
+                query = text
+                for k in MEMORY_SEARCH_KEYWORDS:
+                    query = query.replace(k, "")
+                res = IntentResult(
+                    intent_name="MEMORY_SEARCH",
+                    args={"query": query.strip()},
+                )
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 6. Memory Stats / Summary ────────────────────────────
+        for kw in MEMORY_STATS_KEYWORDS:
+            if kw in text:
+                res = IntentResult(intent_name="MEMORY_STATS")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 7. Memory List ───────────────────────────────────────
+        for kw in MEMORY_LIST_KEYWORDS:
+            if kw in text:
+                res = IntentResult(intent_name="MEMORY_LIST")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 8. System Status ─────────────────────────────────────
         for kw in SYSTEM_KEYWORDS:
             if kw in text:
-                result = IntentResult(intent_name="SYSTEM_STATUS")
-                logger.debug(f"Classified '{user_input}' -> {result}")
-                return result
+                res = IntentResult(intent_name="SYSTEM_STATUS")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
 
-        # 2. File content search
+        # ── 9. File content search ───────────────────────────────
         for kw in FILE_CONTENT_KEYWORDS:
             if kw in text:
                 query = text
                 for k in FILE_CONTENT_KEYWORDS:
                     query = query.replace(k, "")
-                result = IntentResult(
+                res = IntentResult(
                     intent_name="FILE_CONTENT_SEARCH",
                     args={"query": query.strip()},
                 )
-                logger.debug(f"Classified '{user_input}' -> {result}")
-                return result
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
 
-        # 3. Reminder
+        # ── 10. Reminder ──────────────────────────────────────────
         for kw in REMINDER_KEYWORDS:
             if kw in text:
                 delay, message = self._parse_reminder(text)
-                result = IntentResult(
+                res = IntentResult(
                     intent_name="SET_REMINDER",
                     args={"delay_seconds": delay, "message": message},
                 )
-                logger.debug(f"Classified '{user_input}' -> {result}")
-                return result
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
 
-        # 4. Open file
+        # ── 11. Open file ─────────────────────────────────────────
         for kw in OPEN_KEYWORDS:
             if text.startswith(kw + " "):
                 path = text[len(kw):].strip()
                 if "/" in path or "." in path or any(n in text for n in FILE_NOUNS):
-                    result = IntentResult(
+                    res = IntentResult(
                         intent_name="OPEN_FILE",
                         args={"path": user_input[len(kw):].strip()},
                     )
-                    logger.debug(f"Classified '{user_input}' -> {result}")
-                    return result
+                    logger.debug(f"Classified '{user_input}' -> {res}")
+                    return res
 
-        # 5. Run command
+        # ── 12. Run command ───────────────────────────────────────
         for kw in RUN_KEYWORDS:
             if text.startswith(kw + " "):
                 cmd = user_input[len(kw):].strip()
                 if cmd.lower().startswith("command "):
                     cmd = cmd[len("command "):]
-                result = IntentResult(
+                res = IntentResult(
                     intent_name="RUN_COMMAND",
                     args={"command": cmd},
                 )
-                logger.debug(f"Classified '{user_input}' -> {result}")
-                return result
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
 
-        # 6. File search
+        # ── 13. File search ───────────────────────────────────────
         for kw in FILE_SEARCH_KEYWORDS:
             if kw in text:
                 query = self._extract_file_query(text, kw)
                 if query:
-                    result = IntentResult(
+                    res = IntentResult(
                         intent_name="FILE_SEARCH",
                         args={"query": query},
                     )
-                    logger.debug(f"Classified '{user_input}' -> {result}")
-                    return result
+                    logger.debug(f"Classified '{user_input}' -> {res}")
+                    return res
 
         if any(noun in text for noun in FILE_NOUNS):
             for kw in ("find", "where", "locate", "search", "look"):
                 if kw in text:
                     query = self._extract_file_query(text, kw)
                     if query:
-                        result = IntentResult(
+                        res = IntentResult(
                             intent_name="FILE_SEARCH",
                             args={"query": query},
                         )
-                        logger.debug(f"Classified '{user_input}' -> {result}")
-                        return result
+                        logger.debug(f"Classified '{user_input}' -> {res}")
+                        return res
 
         # Fallback intent
-        result = IntentResult(intent_name="GENERAL")
-        logger.debug(f"Classified '{user_input}' -> {result}")
-        return result
+        res = IntentResult(intent_name="GENERAL")
+        logger.debug(f"Classified '{user_input}' -> {res}")
+        return res
 
     def _extract_file_query(self, text: str, trigger_keyword: str) -> str:
         filler_words = {
