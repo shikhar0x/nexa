@@ -1,21 +1,24 @@
 # Nexa — Local-First AI Desktop Companion
 
-Nexa is a privacy-focused, local-first AI desktop companion featuring persistent memory across process restarts, natural language intent routing, desktop system monitoring, safe command execution, and a modular skill-based architecture.
+Nexa is a privacy-focused, local-first AI desktop companion featuring persistent memory across process restarts, natural language intent routing, desktop system monitoring, document text extraction, native token streaming, safe command execution, and a modular skill-based architecture.
 
 ---
 
 ## Key Features
 
-- 🧠 **Persistent Cross-Session Memory**: Retains facts and context across restarts using SQLite for raw turn logging and ChromaDB for vector semantic search.
-- ⚡ **Local LLM Integration**: Powered by Ollama (`llama3.2:1b`) running 100% locally on your machine.
-- 🧩 **Modular Skill Architecture**: Decoupled intent routing and skill registry (`skills/`) allowing new capabilities to be added without modifying runtime core code.
+- 🧠 **Persistent Cross-Session Memory & CQRS Control**: Retains facts and context across restarts using SQLite for raw turn logging and ChromaDB for vector semantic search. Factual memory queries (`MEMORY_STATS`, `MEMORY_EXPORT`, `MEMORY_DELETE`, `MEMORY_CLEAR`) bypass the LLM deterministically (`use_llm=False`), eliminating hallucinations.
+- ⚡ **Native Token Streaming**: Real-time token streaming powered by Ollama's `stream=True` API and a dedicated `ConsoleRenderer` (`runtime/renderer.py`), providing responsive CLI output without screen redrawing.
+- 📄 **Document & Code Intelligence (`FileReaderSkill`)**: Extracts text from PDFs (`PyPDF2`), text documents, Markdown, JSON, CSV, and source code files (`.py`, `.js`, `.ts`, `.c`, `.cpp`, `.java`), safely feeding content to the LLM for reasoning.
+- 📍 **Workspace State Context**: Maintains lightweight conversation context (`workspace_state["active_file"]`) across turns so follow-up commands (*"summarize it"*, *"open it"*, *"search inside this file"*) work naturally.
+- 🧩 **Modular Skill Architecture**: Decoupled intent routing and skill registry (`skills/`) allowing new capabilities to be added without modifying core runtime code.
 - 💻 **Desktop System Integration**:
-  - **System Health**: Monitor CPU, RAM, disk, battery, and temperature in plain conversational language.
-  - **File Intelligence**: Search files by filename, search inside text files via `ripgrep`, and search PDF contents via `PyPDF2`.
+  - **System Health**: Monitor CPU, RAM, disk, battery, and hardware stats in conversational language.
+  - **File Intelligence**: Search files by filename, search inside text files via `ripgrep`, and perform targeted document search.
   - **Desktop Notifications & Reminders**: Timed reminders delivered via native OS notification systems (`notify-send`).
-- 🛡️ **Safety Gate**: All OS-modifying actions (opening applications, running shell commands) pass through explicit user confirmation (`confirm_action`).
+- 🛡️ **Safety Gate**: All OS-modifying actions (opening applications, running shell commands, clearing memory) pass through explicit user confirmation (`confirm_action`).
+- 🛑 **Deterministic Error Handling**: Factual error responses on system operation failures prevent the LLM from fabricating excuses.
 - 🖥️ **OS Abstraction Layer**: Clean OS-independent interface (`infrastructure/os/`) isolating operating system calls.
-- 📝 **Structured Logging & Testing**: Configurable settings (`config/settings.py`), logging to `logs/nexa.log`, and built-in unit tests (`tests/`).
+- 📝 **Structured Logging & Testing**: Configurable settings (`config/settings.py`), structured logging (`logs/nexa.log`), and 29 automated unit tests (`tests/`).
 
 ---
 
@@ -23,28 +26,31 @@ Nexa is a privacy-focused, local-first AI desktop companion featuring persistent
 
 ```text
 nexa/
-├── main.py                     # Minimal CLI loop (~25 lines)
+├── main.py                     # Minimal CLI loop
 ├── config/
 │   ├── settings.py             # Settings (models, paths, timeouts)
 │   ├── constants.py            # System keywords & prompt templates
 │   └── logger.py               # Centralized logging setup
 ├── runtime/
-│   ├── context.py              # ConversationContext object
+│   ├── context.py              # ConversationContext DTO & workspace_state
 │   ├── dispatcher.py           # Central runtime orchestrator
 │   ├── intent.py               # Decoupled IntentRouter & IntentResult DTO
-│   └── llm.py                  # LLM engine accepting ConversationContext
+│   ├── llm.py                  # LLMEngine accepting ConversationContext & streaming
+│   └── renderer.py             # ConsoleRenderer for live token streaming
 ├── skills/
-│   ├── base.py                 # BaseSkill & standardized SkillResult DTO
-│   ├── registry.py             # SkillRegistry for plugin management
+│   ├── base.py                 # BaseSkill & standardized SkillResult DTO (use_llm flag)
+│   ├── registry.py             # SkillRegistry with alias support
 │   ├── system_status.py        # SystemStatusSkill
-│   ├── file_search.py          # FileSearchSkill & FileContentSearchSkill
+│   ├── file_reader.py          # FileReaderSkill (PDF, text, markdown, source code)
+│   ├── file_search.py          # FileSearchSkill & FileContentSearchSkill (targeted search)
+│   ├── memory_skill.py        # MemorySkill (CQRS stats, export, delete, clear, summarize)
 │   ├── open_file.py            # OpenFileSkill (Confirmation gate)
 │   ├── shell.py                # ShellExecutionSkill (Confirmation gate)
 │   └── notification.py         # ReminderSkill
 ├── memory/
-│   ├── service.py              # MemoryService facade
+│   ├── service.py              # MemoryService facade with CQRS Read/Write API
 │   ├── db.py                   # SQLite conversation log
-│   ├── vector_store.py         # ChromaDB persistence
+│   ├── vector_store.py         # ChromaDB persistence & ephemeral client test helper
 │   └── retrieval.py            # Vector memory context retrieval
 ├── infrastructure/
 │   ├── scheduler.py            # Threaded Scheduler service
@@ -58,7 +64,7 @@ nexa/
 │       ├── linux.py            # LinuxOSAdapter (xdg-open, notify-send)
 │       └── factory.py          # OS adapter factory
 ├── logs/                       # Application logs (nexa.log)
-└── tests/                      # Automated unit test suite
+└── tests/                      # Automated unit test suite (29 tests)
 ```
 
 ---
@@ -112,29 +118,37 @@ python main.py
 - `"what's my CPU usage like?"`
 - `"how is my system doing?"`
 
-#### 2. File & Content Search
+#### 2. Document Reading & Summarization
+- `"read '/home/user/Downloads/DBMS_3_shikhar.pdf'"`
+- `"summarize '/home/user/Downloads/DBMS_3_shikhar.pdf'"`
+- `"explain this document"`
+- `"search for attribute inside this file"`
+
+#### 3. Deterministic Memory Operations
+- `"what do you remember"`
+- `"export memory"`
+- `"forget color"`
+- `"clear memory"`
+- `"summarize what you know about Python"`
+
+#### 4. File & Content Search
 - `"find my latest DBMS presentation"`
 - `"where is my report"`
 - `"search inside files for TODO"`
 
-#### 3. Reminders & Notifications
+#### 5. Reminders & Notifications
 - `"remind me in 30 seconds to take a break"`
 - `"remind me in 5 minutes to check the build"`
 
-#### 4. Safe Action Execution (Requests Confirmation)
+#### 6. Safe Action Execution (Requests Confirmation)
 - `"open /home/user/Desktop/nexa/main.py"`
 - `"run command ls -la"`
-
-#### 5. Persistent Memory Recall
-- `"remember that my favorite programming language is Python"`
-- Restart `main.py`
-- `"what is my favorite programming language?"`
 
 ---
 
 ## Running Unit Tests
 
-Run all 18 automated unit tests:
+Run all 29 automated unit tests:
 
 ```bash
 python3 -m unittest discover -s tests
@@ -144,8 +158,8 @@ python3 -m unittest discover -s tests
 
 ## Roadmap
 
-- [x] **Phase 1 — Foundation**: SQLite conversation log + ChromaDB vector memory persistence.
-- [x] **Phase 2 — Desktop Integration**: System monitoring, file/PDF search, notifications, safe action execution.
+- [x] **Phase 1 — Foundation**: SQLite conversation log + ChromaDB vector memory persistence + CQRS MemorySkill.
+- [x] **Phase 2 — Desktop Integration**: System monitoring, file/PDF reader & search, native token streaming, notifications, safe action execution, workspace state context.
 - [ ] **Phase 3 — Developer Mode**: Git integration, repo indexing, watchdog file watching, build log analysis.
 - [ ] **Phase 4 — Vision**: OCR, active window context, live screen understanding.
 - [ ] **Phase 5 — Voice Interface**: STT (Whisper), TTS (Piper), wake-word detection.
