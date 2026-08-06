@@ -25,9 +25,7 @@ def main():
             continue
 
         try:
-            response = dispatcher.process(user_input)
-            if response:
-                print(f"Nexa: {response}\n")
+            dispatcher.process(user_input)
         except Exception as e:
             logger.exception(f"Unhandled exception while processing input '{user_input}': {e}")
             print(f"Nexa: An error occurred: {e}\n")

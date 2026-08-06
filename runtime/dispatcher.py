@@ -3,6 +3,7 @@ from typing import Optional
 from runtime.context import ConversationContext
 from runtime.intent import IntentRouter
 from runtime.llm import LLMEngine
+from runtime.renderer import ConsoleRenderer
 from skills.registry import SkillRegistry
 from skills.system_status import SystemStatusSkill
 from skills.file_search import FileSearchSkill, FileContentSearchSkill
@@ -18,7 +19,7 @@ from config.logger import logger
 class Dispatcher:
     """
     Central runtime orchestrator driving Nexa execution flow:
-    User Input -> IntentRouter -> SkillRegistry -> Skill -> Context -> LLM -> Memory -> Response
+    User Input -> IntentRouter -> SkillRegistry -> Skill -> Context -> LLM Stream -> Renderer -> Memory
     """
 
     def __init__(
@@ -28,12 +29,14 @@ class Dispatcher:
         llm: Optional[LLMEngine] = None,
         memory: Optional[MemoryService] = None,
         scheduler: Optional[Scheduler] = None,
+        renderer: Optional[ConsoleRenderer] = None,
     ) -> None:
         self.router = router or IntentRouter()
         self.registry = registry or SkillRegistry()
         self.llm = llm or LLMEngine()
         self.memory = memory or MemoryService()
         self.scheduler = scheduler or Scheduler()
+        self.renderer = renderer or ConsoleRenderer()
 
     def initialize(self) -> None:
         """Initialize databases, logger, and register default skills."""
@@ -87,12 +90,14 @@ class Dispatcher:
 
             # Deterministic skills (use_llm = False) bypass LLM generation completely
             if not result.use_llm:
+                rendered = self.renderer.render_static(result.message)
                 self.memory.store_exchange(user_input, result.message)
                 logger.info(f"Bypassed LLM generation for deterministic intent '{intent.intent_name}'")
-                return result.message
+                return rendered
 
-        # 5. LLM Natural Language Generation
-        response = self.llm.generate(context)
+        # 5. Native token streaming LLM response generation via ConsoleRenderer
+        chunk_generator = self.llm.stream(context)
+        response = self.renderer.render_stream(chunk_generator)
 
         # 6. Store turn exchange in memory
         self.memory.store_exchange(user_input, response)
