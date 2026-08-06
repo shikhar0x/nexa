@@ -1,0 +1,38 @@
+# Environment & Virtualenvs
+venv/
+ENV/
+env/
+.venv/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Nexa Persistent Data & Databases
+nexa.db
+test_nexa.db
+chroma_data/
+test_chroma_data/
+
+# Application Logs
+logs/*.log
+!logs/.gitkeep
+
+# IDE & Editor Settings
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.pyright_cache/
+
+# OS Specific
+.DS_Store
+Thumbs.db
