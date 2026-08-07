@@ -17,6 +17,8 @@ class SystemStatusSkill(BaseSkill):
             success=True,
             data=data,
             message=message,
-            use_llm=False,
+            use_llm=True,
+            allow_interpretation=True,
         )
+
 

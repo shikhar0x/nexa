@@ -24,6 +24,8 @@ class TestSkills(unittest.TestCase):
         self.assertIsInstance(result, SkillResult)
         self.assertTrue(result.success)
         self.assertIn("cpu_percent", result.data)
+        self.assertTrue(result.use_llm)
+        self.assertTrue(result.allow_interpretation)
 
     def test_file_search_skill(self):
         skill = FileSearchSkill()
@@ -31,6 +33,8 @@ class TestSkills(unittest.TestCase):
         self.assertIsInstance(result, SkillResult)
         self.assertTrue(result.success)
         self.assertIn("results", result.data)
+        self.assertTrue(result.use_llm)
+        self.assertTrue(result.allow_interpretation)
 
     def test_reminder_skill(self):
         skill = ReminderSkill()
@@ -38,7 +42,10 @@ class TestSkills(unittest.TestCase):
         self.assertIsInstance(result, SkillResult)
         self.assertTrue(result.success)
         self.assertEqual(result.data.get("delay_seconds"), 10)
+        self.assertFalse(result.use_llm)
+        self.assertFalse(result.allow_interpretation)
 
 
 if __name__ == "__main__":
     unittest.main()
+

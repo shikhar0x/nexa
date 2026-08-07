@@ -3,7 +3,7 @@ import ollama
 
 from runtime.context import ConversationContext
 from config.settings import settings
-from config.constants import SYSTEM_PROMPT
+from config.constants import SYSTEM_PROMPT, GROUNDED_INTERPRETATION_PROMPT
 from config.logger import logger
 
 
@@ -33,7 +33,6 @@ class LLMEngine:
             stream=True,
         )
 
-
         for chunk in response_stream:
             content = chunk.get("message", {}).get("content", "")
             if content:
@@ -46,14 +45,15 @@ class LLMEngine:
     def _build_prompt(self, context: ConversationContext) -> str:
         prompt = SYSTEM_PROMPT
 
+        if context.skill_result and context.skill_result.allow_interpretation:
+            prompt += f"\n\n{GROUNDED_INTERPRETATION_PROMPT}"
+
         if context.memory_context:
             prompt += f"\n\n{context.memory_context}"
 
         formatted_tool_data = context.format_for_llm()
         if formatted_tool_data:
-            prompt += (
-                f"\n\nThe following real-time data was gathered from the user's system. "
-                f"Use this to answer their question naturally:\n\n{formatted_tool_data}"
-            )
+            prompt += f"\n\n{formatted_tool_data}"
 
         return prompt
+

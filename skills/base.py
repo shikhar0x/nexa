@@ -10,6 +10,8 @@ class SkillResult:
     message: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
     use_llm: bool = True  # If False, Dispatcher returns message directly without calling LLMEngine
+    allow_interpretation: bool = False  # If True, LLM may interpret trusted structured data under strict grounding rules
+
 
 
 class BaseSkill:

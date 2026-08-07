@@ -173,4 +173,6 @@ class MemorySkill(BaseSkill):
             data={"query": search_query, "retrieved": results},
             message=f"Retrieved Context for Summarization:\n{formatted_results}",
             use_llm=True,  # Summarization query uses LLM reasoning!
+            allow_interpretation=True,
         )
+

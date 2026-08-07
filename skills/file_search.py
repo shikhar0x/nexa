@@ -45,7 +45,8 @@ class FileSearchSkill(BaseSkill):
             success=True,
             data={"query": query, "results": all_results},
             message=message,
-            use_llm=False,
+            use_llm=True,
+            allow_interpretation=True,
         )
 
 
@@ -87,8 +88,10 @@ class FileContentSearchSkill(BaseSkill):
             success=True,
             data={"query": query, "results": results},
             message=message,
-            use_llm=False,
+            use_llm=True,
+            allow_interpretation=True,
         )
+
 
 
     def _search_inside_single_file(self, query: str, filepath: str, context: Any) -> SkillResult:
