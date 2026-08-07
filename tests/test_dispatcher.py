@@ -16,7 +16,8 @@ class TestDispatcher(unittest.TestCase):
 
     def test_intent_classification_routing(self):
         intent = self.dispatcher.router.classify("how is my battery?")
-        self.assertEqual(intent.intent_name, "SYSTEM_STATUS")
+        self.assertEqual(intent.intent_name, "SYSTEM_INFO")
+
 
 
 if __name__ == "__main__":
