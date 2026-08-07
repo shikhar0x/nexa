@@ -100,8 +100,10 @@ MEMORY_DELETE_KEYWORDS = {
 
 MEMORY_CLEAR_KEYWORDS = {
     "clear memory", "reset memory", "delete all memories", "delete everything you know",
-    "wipe memory", "clear all memories",
+    "wipe memory", "clear all memories", "erase memory", "erase all memory",
+    "erase all memories", "erase all the memory", "forget everything",
 }
+
 
 MEMORY_SUMMARIZE_KEYWORDS = {
     "summarize what you know", "summarize memory", "summarize conversations",
