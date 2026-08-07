@@ -12,6 +12,10 @@ from skills.open_file import OpenFileSkill
 from skills.shell import ShellExecutionSkill
 from skills.notification import ReminderSkill
 from skills.memory_skill import MemorySkill
+from skills.brightness import BrightnessSkill
+from skills.volume import VolumeSkill
+from skills.wifi import WifiSkill
+from skills.power import PowerSkill
 from memory.service import MemoryService
 from infrastructure.scheduler import Scheduler
 from config.logger import logger
@@ -56,6 +60,10 @@ class Dispatcher:
         self.registry.register(OpenFileSkill())
         self.registry.register(ShellExecutionSkill())
         self.registry.register(ReminderSkill(scheduler=self.scheduler))
+        self.registry.register(BrightnessSkill())
+        self.registry.register(VolumeSkill())
+        self.registry.register(WifiSkill())
+        self.registry.register(PowerSkill())
 
         # Memory skill handles all memory intents
         mem_skill = MemorySkill(memory_service=self.memory)

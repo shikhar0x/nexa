@@ -4,6 +4,7 @@ import os
 from memory.db import init_db, save_message
 from memory.vector_store import add_memory, search_memory, get_collection
 from memory.retrieval import get_context as retrieve_vector_context
+from memory.facts import init_facts_table, set_fact, get_fact, try_extract_name
 from config.settings import settings
 from config.logger import logger
 
@@ -19,11 +20,16 @@ class MemoryService:
         """Initialize underlying databases."""
         logger.info("Initializing MemoryService...")
         init_db()
+        init_facts_table()
 
     # ── Read Queries (CQRS) ──────────────────────────────────────────
 
     def get_context(self, query: str) -> str:
         """Retrieve relevant past context for prompt injection."""
+        if "my name" in query.lower():
+            name = get_fact("user_name")
+            if name:
+                return f"The user's name is {name}."
         context = retrieve_vector_context(query)
         if context:
             logger.debug(f"Retrieved memory context for query '{query}': {len(context)} chars")
@@ -114,6 +120,10 @@ class MemoryService:
 
     def store_exchange(self, user_input: str, response: str) -> None:
         """Persist a conversation turn (user prompt + assistant response)."""
+        name = try_extract_name(user_input)
+        if name:
+            set_fact("user_name", name)
+
         logger.debug(f"Storing turn in SQLite & ChromaDB: '{user_input[:30]}...'")
         save_message("user", user_input)
         user_id = self._get_last_insert_id()

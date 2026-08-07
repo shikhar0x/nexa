@@ -26,6 +26,11 @@ class TestMemoryService(unittest.TestCase):
         context = self.memory.get_context("Python")
         self.assertTrue(len(context) > 0)
 
+    def test_fact_name_extraction_and_context(self):
+        self.memory.store_exchange("My name is Shikhar", "Nice to meet you, Shikhar!")
+        context = self.memory.get_context("what is my name?")
+        self.assertEqual(context, "The user's name is Shikhar.")
+
 
 if __name__ == "__main__":
     unittest.main()

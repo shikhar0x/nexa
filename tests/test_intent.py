@@ -42,6 +42,58 @@ class TestIntentRouter(unittest.TestCase):
         res = self.router.classify("what is 2 + 2?")
         self.assertEqual(res.intent_name, "GENERAL")
 
+    def test_ambiguous_keywords_general_intent(self):
+        res = self.router.classify("explain how photosynthesis works")
+        self.assertEqual(res.intent_name, "GENERAL")
+
+        res2 = self.router.classify("summarize the plot of Inception")
+        self.assertEqual(res2.intent_name, "GENERAL")
+
+    def test_brightness_control_intent(self):
+        res = self.router.classify("get brightness")
+        self.assertEqual(res.intent_name, "BRIGHTNESS_CONTROL")
+        self.assertEqual(res.args.get("action"), "get")
+
+        res2 = self.router.classify("set brightness to 80%")
+        self.assertEqual(res2.intent_name, "BRIGHTNESS_CONTROL")
+        self.assertEqual(res2.args.get("action"), "set")
+        self.assertEqual(res2.args.get("level"), 80)
+
+    def test_volume_control_intent(self):
+        res = self.router.classify("get volume")
+        self.assertEqual(res.intent_name, "VOLUME_CONTROL")
+        self.assertEqual(res.args.get("action"), "get")
+
+        res2 = self.router.classify("set volume 70%")
+        self.assertEqual(res2.intent_name, "VOLUME_CONTROL")
+        self.assertEqual(res2.args.get("action"), "set")
+        self.assertEqual(res2.args.get("level"), 70)
+
+        res3 = self.router.classify("mute audio")
+        self.assertEqual(res3.intent_name, "VOLUME_CONTROL")
+        self.assertEqual(res3.args.get("action"), "mute")
+
+    def test_wifi_control_intent(self):
+        res = self.router.classify("wifi status")
+        self.assertEqual(res.intent_name, "WIFI_CONTROL")
+
+        res2 = self.router.classify("list available networks")
+        self.assertEqual(res2.intent_name, "WIFI_CONTROL")
+        self.assertEqual(res2.args.get("action"), "list")
+
+        res3 = self.router.classify("turn off wifi")
+        self.assertEqual(res3.intent_name, "WIFI_CONTROL")
+        self.assertEqual(res3.args.get("action"), "off")
+
+    def test_power_control_intent(self):
+        res = self.router.classify("shutdown computer")
+        self.assertEqual(res.intent_name, "POWER_CONTROL")
+        self.assertEqual(res.args.get("action"), "shutdown")
+
+        res2 = self.router.classify("restart computer")
+        self.assertEqual(res2.intent_name, "POWER_CONTROL")
+        self.assertEqual(res2.args.get("action"), "restart")
+
 
 if __name__ == "__main__":
     unittest.main()

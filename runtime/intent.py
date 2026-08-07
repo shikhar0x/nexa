@@ -18,6 +18,10 @@ from config.constants import (
     MEMORY_DELETE_KEYWORDS,
     MEMORY_CLEAR_KEYWORDS,
     MEMORY_SUMMARIZE_KEYWORDS,
+    BRIGHTNESS_KEYWORDS,
+    VOLUME_KEYWORDS,
+    WIFI_KEYWORDS,
+    POWER_KEYWORDS,
 )
 from config.logger import logger
 
@@ -28,6 +32,11 @@ class IntentResult:
     intent_name: str
     args: dict[str, Any] = field(default_factory=dict)
     confidence: float = 1.0
+
+
+AMBIGUOUS_FILE_READ_KEYWORDS = {
+    "explain", "summarize", "read", "show", "get", "print", "extract", "display"
+}
 
 
 class IntentRouter:
@@ -103,7 +112,88 @@ class IntentRouter:
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 8. System Status ─────────────────────────────────────
+        # ── 8. Power Control (check early for safety) ─────────────
+        for kw in POWER_KEYWORDS:
+            if kw in text:
+                action = "shutdown"
+                if any(w in text for w in ("restart", "reboot")):
+                    action = "restart"
+                elif any(w in text for w in ("sleep", "hibernate")):
+                    action = "sleep"
+                res = IntentResult(
+                    intent_name="POWER_CONTROL",
+                    args={"action": action, "delay": 60},
+                )
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 9. Brightness Control ──────────────────────────────────
+        for kw in BRIGHTNESS_KEYWORDS:
+            if kw in text:
+                digits = re.findall(r"\d+", text)
+                if digits:
+                    level = int(digits[0])
+                    action = "set"
+                elif any(w in text for w in ("set", "dim", "brighten", "change")):
+                    level = 50
+                    action = "set"
+                else:
+                    action = "get"
+                    level = None
+                args = {"action": action}
+                if level is not None:
+                    args["level"] = level
+                res = IntentResult(intent_name="BRIGHTNESS_CONTROL", args=args)
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 10. Volume Control ─────────────────────────────────────
+        for kw in VOLUME_KEYWORDS:
+            if kw in text:
+                if "unmute" in text:
+                    res = IntentResult(intent_name="VOLUME_CONTROL", args={"action": "unmute"})
+                    logger.debug(f"Classified '{user_input}' -> {res}")
+                    return res
+                elif "mute" in text:
+                    res = IntentResult(intent_name="VOLUME_CONTROL", args={"action": "mute"})
+                    logger.debug(f"Classified '{user_input}' -> {res}")
+                    return res
+
+                digits = re.findall(r"\d+", text)
+                if digits:
+                    level = int(digits[0])
+                    action = "set"
+                elif any(w in text for w in ("set", "turn up", "turn down", "change")):
+                    level = 50
+                    action = "set"
+                else:
+                    action = "get"
+                    level = None
+                args = {"action": action}
+                if level is not None:
+                    args["level"] = level
+                res = IntentResult(intent_name="VOLUME_CONTROL", args=args)
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 11. Wi-Fi Control ──────────────────────────────────────
+        for kw in WIFI_KEYWORDS:
+            if kw in text:
+                if any(w in text for w in ("list", "available", "scan")):
+                    action = "list"
+                elif any(w in text for w in ("turn on", "enable", "wifi on")):
+                    action = "on"
+                elif any(w in text for w in ("turn off", "disable", "wifi off")):
+                    action = "off"
+                elif "connect" in text:
+                    action = "connect"
+                else:
+                    action = "status"
+                res = IntentResult(intent_name="WIFI_CONTROL", args={"action": action})
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
+        # ── 12. System Status ─────────────────────────────────────
         for kw in SYSTEM_KEYWORDS:
             if kw in text:
                 res = IntentResult(intent_name="SYSTEM_STATUS")
@@ -115,7 +205,7 @@ class IntentRouter:
         for kw in FILE_READ_KEYWORDS:
             if kw in text:
                 extracted_path = self._extract_path(user_input, kw)
-                if kw in ("send", "show", "get", "print") and not has_file_path and extracted_path not in ("active_file",):
+                if kw in AMBIGUOUS_FILE_READ_KEYWORDS and not has_file_path and extracted_path not in ("active_file",):
                     continue
                 res = IntentResult(
                     intent_name="FILE_READ",
@@ -208,9 +298,12 @@ class IntentRouter:
                 path = "/" + path
             return path
 
-        # Check for pronouns pointing to workspace active file
+        # Check for pronouns or generic nouns pointing to workspace active file
         text_lower = text.lower()
-        if any(p in text_lower for p in ("this file", "it", "this document", "that document", "that file")):
+        if any(p in text_lower for p in (
+            "this file", "it", "this document", "that document", "that file",
+            "the pdf", "this pdf", "the file", "the document", "the report",
+        )):
             return "active_file"
 
         # Stripped text after trigger

@@ -122,6 +122,14 @@ class MemorySkill(BaseSkill):
                 use_llm=False,
             )
 
+        if not confirm_action(f"delete memories matching '{query}'"):
+            return SkillResult(
+                success=False,
+                message="Cancelled — deletion aborted.",
+                data={"status": "cancelled"},
+                use_llm=False,
+            )
+
         count = self.memory_service.delete_matching_memories(query)
         if count == 0:
             return SkillResult(

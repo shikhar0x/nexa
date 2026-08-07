@@ -41,6 +41,29 @@ OPEN_KEYWORDS = {"open", "launch", "start"}
 
 RUN_KEYWORDS = {"run", "execute", "run command", "shell"}
 
+# ── Hardware & System Control Keywords ───────────────────────
+
+BRIGHTNESS_KEYWORDS = {
+    "brightness", "screen brightness", "set brightness", "dim screen",
+    "brighten screen", "change brightness", "get brightness",
+}
+
+VOLUME_KEYWORDS = {
+    "volume", "set volume", "turn up volume", "turn down volume",
+    "mute", "unmute", "audio volume", "sound volume", "get volume",
+}
+
+WIFI_KEYWORDS = {
+    "wifi", "wi-fi", "wireless", "wifi status", "connect to wifi",
+    "turn on wifi", "turn off wifi", "list networks", "available networks",
+    "wifi networks", "scan wifi",
+}
+
+POWER_KEYWORDS = {
+    "shutdown", "shut down", "restart", "reboot", "sleep", "hibernate",
+    "power off", "turn off computer", "turn off pc",
+}
+
 # ── Memory Subsystem Keywords ────────────────────────────────
 
 MEMORY_STATS_KEYWORDS = {
