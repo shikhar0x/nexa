@@ -44,12 +44,14 @@ class CapabilityResolver:
                 return matched if matched else matched_skills
             else:
                 # Target specific capability based on query tags
-                if any(kw in user_input_lower for kw in ("os", "operating system", "kernel", "distro", "hostname", "uptime")):
+                if any(kw in user_input_lower for kw in ("os", "operating system", "kernel", "distro", "hostname", "uptime", "boot", "running", "how long", "linux version")):
                     if os_info_skill:
                         return [os_info_skill]
                 if any(kw in user_input_lower for kw in ("ip", "network", "interface", "mac", "netmask")):
                     if network_info_skill:
                         return [network_info_skill]
+                if system_status_skill:
+                    return [system_status_skill]
 
         # Check capability supports tags across all registered skills
         if not matched_skills:

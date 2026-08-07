@@ -28,7 +28,8 @@ class OSInfoSkill(BaseSkill):
         message = (
             "Operating System Information:\n"
             f"• OS Distro: {info_data.os_distro}\n"
-            f"• Kernel: {info_data.kernel_release} ({info_data.architecture})\n"
+            f"• OS Version: {info_data.os_version}\n"
+            f"• Kernel Release: {info_data.kernel_release} ({info_data.architecture})\n"
             f"• Hostname: {info_data.hostname}\n"
             f"• Uptime: {info_data.uptime_formatted} (booted {info_data.boot_timestamp})"
         )

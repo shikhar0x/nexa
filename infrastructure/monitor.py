@@ -4,19 +4,49 @@ from typing import Any
 from infrastructure.os import os_adapter
 
 
+import re
+
+def canonicalize_cpu_name(name: str) -> str:
+    """Normalize raw CPU name string to a consistent canonical representation."""
+    if not name:
+        return "Generic CPU"
+    cleaned = re.sub(r"\((?:R|TM)\)", "", name, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def canonicalize_gpu_name(name: str) -> str:
+    """Normalize raw GPU name string to a consistent canonical representation."""
+    if not name:
+        return "Integrated/Generic Graphics"
+    name_lower = name.lower()
+    if "iris plus" in name_lower or ("ice lake" in name_lower and "graphics" in name_lower) or "iris plus graphics g1" in name_lower:
+        return "Intel Iris Plus Graphics G1"
+    if "intel" in name_lower and ("uhd graphics" in name_lower or "hd graphics" in name_lower):
+        return "Intel UHD Graphics"
+
+    cleaned = re.sub(r"\(rev\s+[0-9a-fA-F]+\)", "", name, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^Intel Corporation\s+", "Intel ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^NVIDIA Corporation\s+", "NVIDIA ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^Advanced Micro Devices,?\s+Inc\.?\s+\[AMD/ATI\]\s+", "AMD ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
 def _get_cpu_name() -> str:
     """Attempt to extract exact CPU model name from /proc/cpuinfo or platform."""
+    raw_name = ""
     try:
         with open("/proc/cpuinfo", "r", encoding="utf-8") as f:
             for line in f:
                 if "model name" in line.lower():
-                    return line.split(":", 1)[1].strip()
+                    raw_name = line.split(":", 1)[1].strip()
+                    break
     except Exception:
         pass
-    proc = platform.processor()
-    if proc:
-        return proc
-    return f"{platform.machine()} CPU"
+    if not raw_name:
+        raw_name = platform.processor() or f"{platform.machine()} CPU"
+    return canonicalize_cpu_name(raw_name)
 
 
 def _get_gpu_details() -> dict[str, Any]:
@@ -34,7 +64,7 @@ def _get_gpu_details() -> dict[str, Any]:
         if res.returncode == 0 and res.stdout.strip():
             parts = [p.strip() for p in res.stdout.strip().split(",")]
             if len(parts) >= 4:
-                name = parts[0]
+                name = canonicalize_gpu_name(parts[0])
                 try:
                     usage_percent = float(parts[1])
                 except ValueError:
@@ -55,7 +85,7 @@ def _get_gpu_details() -> dict[str, Any]:
                     gpu_name = parts[-1].strip() if len(parts) >= 3 else line
                     gpu_lines.append(gpu_name)
             if gpu_lines:
-                name = "; ".join(gpu_lines)
+                name = canonicalize_gpu_name("; ".join(gpu_lines))
     except Exception:
         pass
 
@@ -73,7 +103,7 @@ def _get_gpu_details() -> dict[str, Any]:
             pass
 
     return {
-        "name": name,
+        "name": canonicalize_gpu_name(name),
         "usage_percent": usage_percent,
         "vram": vram_str or "Shared System RAM (Integrated)",
     }

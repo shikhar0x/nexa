@@ -208,8 +208,14 @@ class IntentRouter(BaseIntentClassifier):
             return res
 
         # ── 6. Directory Listing Query ─────────────────────────────
-        if _match_any(DIRECTORY_LISTING_KEYWORDS, text):
-            path = self._extract_path(user_input, "list")
+        known_folders = ("downloads", "desktop", "documents", "pictures", "music", "videos", "templates", "public")
+        is_dir_query = (
+            _match_any(DIRECTORY_LISTING_KEYWORDS, text)
+            or any(f"in {f}" in text or f"inside {f}" in text or f"show {f}" in text or f"open {f}" in text for f in known_folders)
+            or bool(re.search(r"\b(list|show|view|display|count|how many)\b.*\b(in|inside|folder|directory)\b", text))
+        )
+        if is_dir_query:
+            path = self._extract_directory_path(user_input)
             res = IntentResult(intent_name="DIRECTORY_LISTING", args={"path": path})
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
@@ -257,9 +263,9 @@ class IntentRouter(BaseIntentClassifier):
 
         for kw in OPEN_KEYWORDS:
             if text.startswith(kw + " "):
-                path = self._extract_path(user_input[len(kw):].strip(), kw)
+                path = self._extract_directory_path(user_input[len(kw):].strip())
                 res = IntentResult(
-                    intent_name="OPEN_FILE",
+                    intent_name="DIRECTORY_LISTING" if path in ("Downloads", "Desktop", "Documents", "Pictures", "Music", "Videos") else "OPEN_FILE",
                     args={"path": path},
                 )
                 logger.debug(f"Classified '{user_input}' -> {res}")
@@ -319,6 +325,59 @@ class IntentRouter(BaseIntentClassifier):
         return None
 
 
+
+    def _extract_directory_path(self, text: str) -> str:
+        """Robust directory path extraction supporting standard user folders and prepositional phrases."""
+        # Match explicit paths like /path, ~/path, home/path, ./path
+        match = re.search(r"(?:^|\s)['\"]?(~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b\./[^\s,'\"]+)['\"]?", text)
+        if match:
+            path = match.group(1).strip().strip("'\"")
+            if path.startswith("home/"):
+                path = "/" + path
+            return path
+
+        text_clean = text.strip().rstrip(".").strip("'\"")
+        text_lower = text_clean.lower()
+
+        # Check for standard known user folder names
+        known_folders = {
+            "downloads": "Downloads",
+            "desktop": "Desktop",
+            "documents": "Documents",
+            "pictures": "Pictures",
+            "music": "Music",
+            "videos": "Videos",
+            "templates": "Templates",
+            "public": "Public",
+        }
+        for kw, canonical in known_folders.items():
+            if re.search(rf"\b{kw}\b", text_lower):
+                return canonical
+
+        # Preposition/trigger based extraction ("in", "inside", "of", "folder", "directory")
+        match_prep = re.search(
+            r"\b(?:in|inside|of|folder|directory|inside of)\s+['\"]?([a-zA-Z0-9_\-./]+)['\"]?",
+            text_clean,
+            flags=re.IGNORECASE,
+        )
+        if match_prep:
+            candidate = match_prep.group(1).strip().strip("'\"")
+            if candidate.lower() not in ("my", "the", "a", "an", "this", "that"):
+                return candidate
+
+        # Strip action & filler words
+        filler_patterns = [
+            r"^(?:list\s+files\s+in|list\s+directory\s+in|list\s+folder\s+in|list\s+files\s+inside|list\s+pdfs\s+in|list\s+files|list\s+folder|list|show\s+contents\s+of\s+folder|show\s+contents\s+of|show\s+everything\s+inside|show\s+files\s+in|show|open|how\s+many\s+files\s+are\s+in)\s+",
+            r"\b(?:in|inside|folder|directory|files|pdfs|everything|all|my|the|a|an)\b",
+        ]
+        candidate = text_clean
+        for pat in filler_patterns:
+            candidate = re.sub(pat, " ", candidate, flags=re.IGNORECASE)
+
+        candidate = re.sub(r"\s+", " ", candidate).strip()
+        if candidate.startswith("home/"):
+            candidate = "/" + candidate
+        return candidate or "workspace"
 
     def _extract_path(self, text: str, trigger_keyword: str) -> str:
         # Match path starting with /, ~/, home/, or standard filenames, stripping quotes

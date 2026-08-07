@@ -19,12 +19,17 @@ SYSTEM_INFO_KEYWORDS = {
     "what's my ip", "ip address", "local ip", "network ip",
     "network interface", "network interfaces", "gateway", "mac address",
     "netmask", "complete system report", "system report",
+    "how long has my computer been running", "how long has my pc been running",
+    "how long has the system been running", "how long has it been running",
+    "boot time", "linux version", "show my linux version",
+    "what operating system am I running", "cpu usage", "system temperature",
 }
 
 PROCESS_KEYWORDS = {
     "running processes", "list processes", "top processes", "top cpu",
     "top ram", "cpu hungry", "ram hungry", "process list", "show processes",
     "ps aux", "task manager", "active processes", "process count",
+    "list the top cpu-consuming processes", "top cpu consuming processes",
 }
 
 DIRECTORY_LISTING_KEYWORDS = {
@@ -32,10 +37,12 @@ DIRECTORY_LISTING_KEYWORDS = {
     "files in downloads", "files in desktop", "files in documents", "show files in",
     "what files are in", "contents of folder", "contents of directory",
     "show contents of", "list files", "directory listing",
+    "show desktop", "show everything inside", "how many files are in",
 }
 
 FILE_SEARCH_KEYWORDS = {
     "find", "search for", "locate", "where is", "look for", "find my",
+    "search for files related to",
 }
 
 
@@ -48,6 +55,7 @@ FILE_NOUNS = {
 FILE_CONTENT_KEYWORDS = {
     "search inside", "grep", "find in files", "search contents",
     "search within", "look inside", "search in files", "inside",
+    "search for sql inside pdfs", "search sql inside pdfs",
 }
 
 FILE_READ_KEYWORDS = {
@@ -142,20 +150,18 @@ SYSTEM_PROMPT = (
     "You are Nexa, an intelligent personal desktop AI assistant with persistent memory. "
     "You run locally on the user's Linux (Ubuntu) machine. "
     "CRITICAL REQUIREMENT: Never invent or hallucinate hardware specs or system status numbers. "
-    "CRITICAL SAFETY RULE: Never fabricate or hallucinate shell command outputs, terminal results, exit codes, process lists, or hardware telemetry. Tool outputs must strictly originate from actual tool executions. If a command was requested but not executed, state that it was not executed. "
-    "Always suggest Linux-native tools (such as intel_gpu_top, nvidia-smi, htop, or lm-sensors) instead of Windows utilities (such as GPU-Z or HWiNFO). "
-    "Keep responses concise, conversational, and helpful."
+    "CRITICAL GROUNDING RULE: Never refer to previous tool outputs, earlier measurements, or conversational history (e.g. NEVER say 'As mentioned earlier', 'According to previous data', or 'Previously'). Answer strictly and independently using the current tool output. "
+    "CRITICAL COMMAND RULE: Do NOT suggest or recommend terminal commands (e.g. 'ip addr', 'top', 'htop', 'uptime') if Nexa has already answered the question, UNLESS the user explicitly asks how to do it manually or the capability is unsupported. "
+    "Keep responses concise, conversational, and grounded."
 )
 
 GROUNDED_INTERPRETATION_PROMPT = (
     "STRICT DATA GROUNDING DIRECTIVES (ALLOW_INTERPRETATION = TRUE):\n"
     "1. The structured tool data below was gathered directly from verified local system tools.\n"
-    "2. Explain and interpret these exact values naturally and conversationally (e.g., explaining if CPU/RAM load is healthy, battery state, etc.).\n"
-    "3. NEVER invent, estimate, or hallucinate metrics, frequencies, driver versions, process lists, or numbers not present in the data.\n"
-    "4. EXPLICIT UNAVAILABLE DATA: If any field is marked 'Unavailable (None)', explicitly inform the user that live data for that sensor is not exposed by the current monitoring backend. Suggest relevant Linux commands (e.g., intel_gpu_top or nvidia-smi) if appropriate.\n"
-    "5. NEVER fabricate command outputs, terminal logs, or shell execution results."
+    "2. Explain and interpret these exact values naturally and conversationally (e.g., explaining if CPU/RAM/Disk load is low, moderate, or high).\n"
+    "3. NEVER invent, estimate, or hallucinate metrics, frequencies, hardware specs, process lists, or numbers not present in the data.\n"
+    "4. ABSOLUTE INDEPENDENCE: Never refer to previous context, earlier measurements, past turns, or prior outputs (e.g. NEVER say 'As mentioned earlier', 'According to previous data', or 'Previously'). Treat each turn as completely independent.\n"
+    "5. NO UNNECESSARY COMMANDS: Do NOT recommend terminal commands (e.g., ip addr, top, htop, uptime) if the answer is already provided in the tool output, UNLESS the user explicitly asked for command recommendations or manual instructions.\n"
+    "6. EXPLICIT UNAVAILABLE DATA: If any field is marked 'Unavailable (None)', explicitly inform the user that live data for that sensor is not exposed by the current backend.\n"
+    "7. NEVER fabricate command outputs, terminal logs, or shell execution results."
 )
-
-
-
-
