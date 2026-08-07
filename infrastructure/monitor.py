@@ -19,8 +19,32 @@ def _get_cpu_name() -> str:
     return f"{platform.machine()} CPU"
 
 
-def _get_gpu_name() -> str:
-    """Attempt to extract GPU model name via lspci on Linux."""
+def _get_gpu_details() -> dict[str, Any]:
+    """Retrieve GPU model name, utilization percentage, and VRAM information."""
+    name = "Integrated/Generic Graphics"
+    usage_percent = None
+    vram_str = None
+
+    # 1. Attempt nvidia-smi for NVIDIA GPUs
+    try:
+        res = os_adapter.run_command(
+            ["nvidia-smi", "--query-gpu=name,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
+            timeout=3,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            parts = [p.strip() for p in res.stdout.strip().split(",")]
+            if len(parts) >= 4:
+                name = parts[0]
+                try:
+                    usage_percent = float(parts[1])
+                except ValueError:
+                    pass
+                vram_str = f"{parts[2]} MB / {parts[3]} MB VRAM"
+                return {"name": name, "usage_percent": usage_percent, "vram": vram_str}
+    except Exception:
+        pass
+
+    # 2. Extract GPU model via lspci on Linux
     try:
         res = os_adapter.run_command(["lspci"], timeout=3)
         if res.returncode == 0:
@@ -31,10 +55,28 @@ def _get_gpu_name() -> str:
                     gpu_name = parts[-1].strip() if len(parts) >= 3 else line
                     gpu_lines.append(gpu_name)
             if gpu_lines:
-                return "; ".join(gpu_lines)
+                name = "; ".join(gpu_lines)
     except Exception:
         pass
-    return "Integrated/Generic Graphics"
+
+    # 3. Check sysfs for AMD/Intel GPU usage percentage
+    for sys_path in (
+        "/sys/class/drm/card0/device/gpu_busy_percent",
+        "/sys/class/drm/card1/device/gpu_busy_percent",
+    ):
+        try:
+            with open(sys_path, "r", encoding="utf-8") as f:
+                val = f.read().strip().rstrip("%")
+                usage_percent = float(val)
+                break
+        except Exception:
+            pass
+
+    return {
+        "name": name,
+        "usage_percent": usage_percent,
+        "vram": vram_str or "Shared System RAM (Integrated)",
+    }
 
 
 def get_system_data() -> dict[str, Any]:
@@ -50,7 +92,7 @@ def get_system_data() -> dict[str, Any]:
     except Exception:
         cpu_freq_ghz = None
 
-    gpu_name = _get_gpu_name()
+    gpu = _get_gpu_details()
 
     ram = psutil.virtual_memory()
     ram_used_gb = round(ram.used / (1024**3), 2)
@@ -71,7 +113,9 @@ def get_system_data() -> dict[str, Any]:
         "cpu_cores_physical": cpu_count_physical,
         "cpu_freq_ghz": cpu_freq_ghz,
         "cpu_percent": cpu_percent,
-        "gpu_name": gpu_name,
+        "gpu_name": gpu["name"],
+        "gpu_usage_percent": gpu["usage_percent"],
+        "gpu_vram": gpu["vram"],
         "ram_percent": ram_percent,
         "ram_used_gb": ram_used_gb,
         "ram_total_gb": ram_total_gb,
@@ -108,9 +152,10 @@ def get_system_data() -> dict[str, Any]:
 def format_system_data(data: dict[str, Any]) -> str:
     """Format system data dictionary into text lines with exact numbers."""
     freq_str = f" @ {data['cpu_freq_ghz']} GHz" if data.get("cpu_freq_ghz") else ""
+    gpu_usage_str = f" - {data['gpu_usage_percent']}% usage" if data.get("gpu_usage_percent") is not None else ""
     lines = [
         f"CPU: {data['cpu_name']} ({data['cpu_cores_logical']} logical cores / {data['cpu_cores_physical']} physical){freq_str} - {data['cpu_percent']}% usage",
-        f"GPU: {data['gpu_name']}",
+        f"GPU: {data['gpu_name']}{gpu_usage_str} ({data.get('gpu_vram', 'Shared System RAM')})",
         f"RAM: {data['ram_used_gb']} GB used of {data['ram_total_gb']} GB total ({data['ram_percent']}% used, {data['ram_free_gb']} GB available)",
         f"Storage ({data.get('system_drive', '/')}): {data['disk_used_gb']} GB used of {data['disk_total_gb']} GB total ({data['disk_percent']}% used, {data['disk_free_gb']} GB free)",
     ]
@@ -121,4 +166,5 @@ def format_system_data(data: dict[str, Any]) -> str:
         lines.append(f"Temperature: {data['temperature_c']}°C ({data.get('temperature_sensor', 'sensor')})")
 
     return "Real-time System Hardware & Status:\n" + "\n".join(lines)
+
 
