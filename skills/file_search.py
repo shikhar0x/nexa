@@ -1,6 +1,6 @@
-import os
-from typing import Any
-from skills.base import BaseSkill, SkillResult
+from dataclasses import asdict
+from skills.base import BaseSkill, SkillResult, Capability
+from skills.schemas import FileSearchResultData
 from infrastructure.search.oswalk import OsWalkSearchBackend, format_search_results
 
 try:
@@ -15,6 +15,13 @@ class FileSearchSkill(BaseSkill):
     name = "FILE_SEARCH"
     description = "Searches for files by filename or PDF content."
     permissions = ["READ_FILES"]
+    capability = Capability(
+        name="file_search",
+        description="Searches local workspace filenames and PDF documents",
+        supports=["file_search", "find_file", "search_filenames"],
+        requires_confirmation=False,
+        deterministic=True,
+    )
 
     def __init__(self, backend: OsWalkSearchBackend | None = None) -> None:
         self.backend = backend or OsWalkSearchBackend()
@@ -40,10 +47,18 @@ class FileSearchSkill(BaseSkill):
             context.workspace_state["active_file"] = all_results[0]
 
         message = format_search_results(all_results, query)
+        schema_data = asdict(
+            FileSearchResultData(
+                query=query,
+                results_count=len(all_results),
+                results=all_results,
+                search_backend="OsWalkSearchBackend",
+            )
+        )
 
         return SkillResult(
             success=True,
-            data={"query": query, "results": all_results},
+            data=schema_data,
             message=message,
             use_llm=True,
             allow_interpretation=True,
@@ -56,6 +71,14 @@ class FileContentSearchSkill(BaseSkill):
     name = "FILE_CONTENT_SEARCH"
     description = "Searches within text files or a specific targeted document."
     permissions = ["READ_FILES"]
+    capability = Capability(
+        name="file_content_search",
+        description="Searches inside text and PDF file contents via ripgrep",
+        supports=["grep", "file_content_search", "search_inside"],
+        requires_confirmation=False,
+        deterministic=True,
+    )
+
 
     def __init__(self, backend: OsWalkSearchBackend | None = None) -> None:
         self.backend = backend or OsWalkSearchBackend()

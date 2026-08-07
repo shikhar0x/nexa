@@ -2,7 +2,7 @@
 Global system constants, keyword sets, and prompt templates.
 """
 
-SYSTEM_KEYWORDS = {
+SYSTEM_INFO_KEYWORDS = {
     "battery", "cpu", "ram", "memory status", "disk", "storage",
     "system status", "temperature", "performance", "how's my",
     "how is my", "system info", "system health", "hardware",
@@ -13,11 +13,31 @@ SYSTEM_KEYWORDS = {
     "gpu stats", "what specs", "my specs", "hardware info",
     "what do you see", "check specs", "check system", "system state",
     "system details", "component stats", "components",
+    "os version", "operating system", "kernel version", "kernel",
+    "distro", "ubuntu version", "system os", "hostname", "computer name",
+    "uptime", "system uptime", "uname", "ip", "my ip", "what is my ip",
+    "what's my ip", "ip address", "local ip", "network ip",
+    "network interface", "network interfaces", "gateway", "mac address",
+    "netmask", "complete system report", "system report",
+}
+
+PROCESS_KEYWORDS = {
+    "running processes", "list processes", "top processes", "top cpu",
+    "top ram", "cpu hungry", "ram hungry", "process list", "show processes",
+    "ps aux", "task manager", "active processes", "process count",
+}
+
+DIRECTORY_LISTING_KEYWORDS = {
+    "list files in", "list directory", "show contents of folder", "list folder",
+    "files in downloads", "files in desktop", "files in documents", "show files in",
+    "what files are in", "contents of folder", "contents of directory",
+    "show contents of", "list files", "directory listing",
 }
 
 FILE_SEARCH_KEYWORDS = {
     "find", "search for", "locate", "where is", "look for", "find my",
 }
+
 
 FILE_NOUNS = {
     "file", "document", "presentation", "pdf", "folder",

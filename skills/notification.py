@@ -1,5 +1,4 @@
-from typing import Any
-from skills.base import BaseSkill, SkillResult
+from skills.base import BaseSkill, SkillResult, Capability
 from infrastructure.scheduler import Scheduler
 from infrastructure.notifications import send_notification
 
@@ -10,6 +9,13 @@ class ReminderSkill(BaseSkill):
     name = "SET_REMINDER"
     description = "Schedules a desktop reminder notification via the Scheduler service."
     permissions = ["SCHEDULE_TASK", "NOTIFY"]
+    capability = Capability(
+        name="notification",
+        description="Schedules a desktop reminder notification via the Scheduler service",
+        supports=["reminder", "notify", "set_reminder"],
+        requires_confirmation=False,
+        deterministic=True,
+    )
 
     def __init__(self, scheduler: Scheduler | None = None) -> None:
         self.scheduler = scheduler or Scheduler()
@@ -38,4 +44,6 @@ class ReminderSkill(BaseSkill):
             success=True,
             message=user_msg,
             data={"message": message, "delay_seconds": delay_seconds, "time_str": time_str},
+            use_llm=False,
         )
+

@@ -3,7 +3,9 @@ from typing import Any
 import re
 
 from config.constants import (
-    SYSTEM_KEYWORDS,
+    SYSTEM_INFO_KEYWORDS,
+    PROCESS_KEYWORDS,
+    DIRECTORY_LISTING_KEYWORDS,
     FILE_SEARCH_KEYWORDS,
     FILE_NOUNS,
     FILE_CONTENT_KEYWORDS,
@@ -35,6 +37,12 @@ class IntentResult:
     confidence: float = 1.0
 
 
+class BaseIntentClassifier:
+    """Abstract base class interface for intent classifiers."""
+    def classify(self, user_input: str) -> IntentResult:
+        raise NotImplementedError
+
+
 AMBIGUOUS_FILE_READ_KEYWORDS = {
     "explain", "summarize", "read", "show", "get", "print", "extract", "display"
 }
@@ -51,11 +59,12 @@ def _match_any(keywords: set[str] | list[str], text: str) -> bool:
     return any(_match_kw(kw, text) for kw in keywords)
 
 
-class IntentRouter:
+class IntentRouter(BaseIntentClassifier):
     """Decoupled intent classifier mapping user text to IntentResult objects."""
 
     def classify(self, user_input: str) -> IntentResult:
         text = user_input.lower().strip()
+
 
         # ── 1. Power Control (Safety critical system control) ──────
         if _match_any(POWER_KEYWORDS, text):
@@ -192,13 +201,27 @@ class IntentRouter:
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 
-        # ── 5. System Status Query ────────────────────────────────
-        if _match_any(SYSTEM_KEYWORDS, text):
-            res = IntentResult(intent_name="SYSTEM_STATUS")
+        # ── 5. Process Info Query ─────────────────────────────────
+        if _match_any(PROCESS_KEYWORDS, text):
+            res = IntentResult(intent_name="PROCESS_INFO")
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 
-        # ── 6. File Operations (Read, Content Search, Open, Search) ─
+        # ── 6. Directory Listing Query ─────────────────────────────
+        if _match_any(DIRECTORY_LISTING_KEYWORDS, text):
+            path = self._extract_path(user_input, "list")
+            res = IntentResult(intent_name="DIRECTORY_LISTING", args={"path": path})
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        # ── 7. System Info Query ──────────────────────────────────
+        if _match_any(SYSTEM_INFO_KEYWORDS, text):
+            res = IntentResult(intent_name="SYSTEM_INFO")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        # ── 8. File Operations (Read, Content Search, Open, Search) ─
+
         has_file_path = bool(re.search(r"(\b~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.(?:pdf|txt|md|py|js|ts|json|csv|html|css|cpp|c|java))\b", text))
         for kw in FILE_READ_KEYWORDS:
             if _match_kw(kw, text):
@@ -289,9 +312,12 @@ class IntentRouter:
                 # Exclude ambiguous conversational prefixes if any
                 if first_word in ("do", "shell", "exec") and len(words) > 1 and words[1] in ("you", "i", "we", "the", "a", "this"):
                     return None
+                if first_word == "find" and len(words) > 1 and words[1] in ("my", "the", "a", "an", "file", "files", "document", "documents", "presentation", "pdf", "inside"):
+                    return None
                 return IntentResult(intent_name="RUN_COMMAND", args={"command": user_input.strip()})
 
         return None
+
 
 
     def _extract_path(self, text: str, trigger_keyword: str) -> str:
@@ -345,7 +371,8 @@ class IntentRouter:
         filler_words = {
             trigger_keyword, "my", "latest", "the", "a", "an", "for",
             "called", "named", "is", "where", "are", "me", "can", "you",
-            "find", "search", "look", "locate",
+            "find", "search", "look", "locate", "related", "to", "about",
+            "files", "file", "document", "documents",
         }
         words = text.split()
         filtered = [w for w in words if w.lower() not in filler_words]
@@ -356,6 +383,7 @@ class IntentRouter:
         if not stripped_words:
             return ""
         return query
+
 
     def _parse_reminder(self, text: str) -> tuple[int, str]:
         time_match = re.search(

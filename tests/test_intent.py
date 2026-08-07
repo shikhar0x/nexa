@@ -6,27 +6,41 @@ class TestIntentRouter(unittest.TestCase):
     def setUp(self):
         self.router = IntentRouter()
 
-    def test_system_status_intent(self):
+    def test_system_info_intent(self):
         res = self.router.classify("how's my battery?")
-        self.assertEqual(res.intent_name, "SYSTEM_STATUS")
+        self.assertEqual(res.intent_name, "SYSTEM_INFO")
 
         res2 = self.router.classify("what's my CPU usage like?")
-        self.assertEqual(res2.intent_name, "SYSTEM_STATUS")
+        self.assertEqual(res2.intent_name, "SYSTEM_INFO")
 
         res3 = self.router.classify("give me the stats f the hardware components in exact number")
-        self.assertEqual(res3.intent_name, "SYSTEM_STATUS")
+        self.assertEqual(res3.intent_name, "SYSTEM_INFO")
 
         res4 = self.router.classify("what do you see?")
-        self.assertEqual(res4.intent_name, "SYSTEM_STATUS")
+        self.assertEqual(res4.intent_name, "SYSTEM_INFO")
 
         res5 = self.router.classify("check hardware specs")
-        self.assertEqual(res5.intent_name, "SYSTEM_STATUS")
+        self.assertEqual(res5.intent_name, "SYSTEM_INFO")
 
+        res6 = self.router.classify("show os version")
+        self.assertEqual(res6.intent_name, "SYSTEM_INFO")
+
+        res7 = self.router.classify("what's my IP?")
+        self.assertEqual(res7.intent_name, "SYSTEM_INFO")
+
+    def test_process_info_intent(self):
+        res = self.router.classify("list running processes")
+        self.assertEqual(res.intent_name, "PROCESS_INFO")
+
+    def test_directory_listing_intent(self):
+        res = self.router.classify("list files in Downloads")
+        self.assertEqual(res.intent_name, "DIRECTORY_LISTING")
 
     def test_file_search_intent(self):
         res = self.router.classify("find my latest DBMS presentation")
         self.assertEqual(res.intent_name, "FILE_SEARCH")
         self.assertEqual(res.args.get("query"), "dbms presentation")
+
 
     def test_file_content_search_intent(self):
         res = self.router.classify("search inside files for TODO")
@@ -55,8 +69,8 @@ class TestIntentRouter(unittest.TestCase):
             ("intel_gpu_top", "RUN_COMMAND", "intel_gpu_top"),
             ("run nvidia-smi", "RUN_COMMAND", "nvidia-smi"),
             ("nvidia-smi", "RUN_COMMAND", "nvidia-smi"),
-            ("check gpu usage", "SYSTEM_STATUS", None),
-            ("gpu usage", "SYSTEM_STATUS", None),
+            ("check gpu usage", "SYSTEM_INFO", None),
+            ("gpu usage", "SYSTEM_INFO", None),
             ("run python main.py", "RUN_COMMAND", "python main.py"),
             ("python main.py", "RUN_COMMAND", "python main.py"),
             ("run ls", "RUN_COMMAND", "ls"),
@@ -74,6 +88,7 @@ class TestIntentRouter(unittest.TestCase):
             )
             if expected_cmd is not None:
                 self.assertEqual(res.args.get("command"), expected_cmd)
+
 
 
     def test_general_fallback_intent(self):

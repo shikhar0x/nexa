@@ -1,13 +1,19 @@
 import os
 from typing import Any
 
-from skills.base import BaseSkill, SkillResult
+from skills.base import BaseSkill, SkillResult, Capability
 from config.logger import logger
+
 
 try:
     from PyPDF2 import PdfReader
 except ImportError:
     PdfReader = None
+
+try:
+    import docx
+except ImportError:
+    docx = None
 
 MAX_TEXT_CHARS = 15000
 
@@ -20,13 +26,20 @@ TEXT_EXTENSIONS = {
 
 class FileReaderSkill(BaseSkill):
     """
-    Skill to extract text from local files (PDF, text, markdown, source code)
+    Skill to extract text from local files (PDF, DOCX, text, markdown, source code)
     for LLM summarization and reasoning.
     """
 
     name = "FILE_READ"
-    description = "Extracts text from PDF, text, and source code files for LLM analysis."
+    description = "Extracts text from PDF, DOCX, text, and source code files for LLM analysis."
     permissions = ["READ_FILES"]
+    capability = Capability(
+        name="file_read",
+        description="Reads text, PDF, and DOCX files for natural LLM reasoning",
+        supports=["file_read", "pdf", "docx", "text"],
+        requires_confirmation=False,
+        deterministic=True,
+    )
 
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
         path = args.get("path", "").strip().strip("'\"")
@@ -70,6 +83,8 @@ class FileReaderSkill(BaseSkill):
         try:
             if ext == ".pdf":
                 extracted_text = self._read_pdf(path)
+            elif ext in (".docx", ".doc"):
+                extracted_text = self._read_docx(path)
             elif ext in TEXT_EXTENSIONS or self._is_text_file(path):
                 extracted_text = self._read_text(path)
             else:
@@ -118,6 +133,7 @@ class FileReaderSkill(BaseSkill):
             },
             message=message,
             use_llm=True,  # Extracted text passed to LLM for reasoning/summarization!
+            allow_interpretation=True,
         )
 
     def _read_pdf(self, path: str) -> str:
@@ -131,6 +147,14 @@ class FileReaderSkill(BaseSkill):
             if text:
                 pages_text.append(f"--- Page {i + 1} ---\n{text}")
         return "\n\n".join(pages_text)
+
+    def _read_docx(self, path: str) -> str:
+        if docx is None:
+            raise ImportError("python-docx is not installed — run: pip install python-docx")
+        doc = docx.Document(path)
+        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+        return "\n\n".join(paragraphs)
+
 
     def _read_text(self, path: str) -> str:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
