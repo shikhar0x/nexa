@@ -21,10 +21,12 @@ logs/*.log
 !logs/.gitkeep
 
 # IDE & Editor Settings
+.vscode/
 .idea/
 *.swp
 *.swo
 *~
+
 
 # Testing & Coverage
 .pytest_cache/

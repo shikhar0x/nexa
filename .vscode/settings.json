@@ -1,7 +1,0 @@
-{
-  "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
-  "python.analysis.configFile": "pyrightconfig.json",
-  "python.analysis.extraPaths": [
-    "${workspaceFolder}/venv/lib/python3.14/site-packages"
-  ]
-}
