@@ -46,7 +46,15 @@ REMINDER_KEYWORDS = {
 
 OPEN_KEYWORDS = {"open", "launch", "start"}
 
-RUN_KEYWORDS = {"run", "execute", "run command", "shell"}
+RUN_KEYWORDS = {"run", "execute", "run command", "shell", "exec", "bash", "cmd", "do"}
+
+KNOWN_SHELL_COMMANDS = {
+    "intel_gpu_top", "nvidia-smi", "python", "python3", "git", "ls", "pwd",
+    "cat", "grep", "find", "top", "htop", "fastfetch", "neofetch", "bash",
+    "sh", "curl", "wget", "docker", "systemctl", "pip", "npm", "lscpu",
+    "lspci", "lsusb", "df", "du", "free", "uname", "uptime", "whoami",
+}
+
 
 # ── Hardware & System Control Keywords ───────────────────────
 
@@ -114,9 +122,11 @@ SYSTEM_PROMPT = (
     "You are Nexa, a personal desktop assistant with persistent memory. "
     "You run locally on the user's Linux (Ubuntu) machine. "
     "CRITICAL REQUIREMENT: Never invent or hallucinate hardware specs or system status numbers. "
+    "CRITICAL SAFETY RULE: Never fabricate or hallucinate shell command outputs, terminal results, exit codes, process lists, or hardware telemetry. Tool outputs must strictly originate from actual tool executions. If a command was requested but not executed, state that it was not executed. "
     "When real-time data or tool outputs are provided in context, answer accurately based strictly on that data. "
     "Always suggest Linux-native tools (such as intel_gpu_top, nvidia-smi, htop, or lm-sensors) instead of Windows utilities (such as GPU-Z or HWiNFO). "
     "Keep responses concise, conversational, and helpful."
 )
+
 
 

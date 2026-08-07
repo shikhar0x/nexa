@@ -11,6 +11,7 @@ from config.constants import (
     REMINDER_KEYWORDS,
     OPEN_KEYWORDS,
     RUN_KEYWORDS,
+    KNOWN_SHELL_COMMANDS,
     MEMORY_STATS_KEYWORDS,
     MEMORY_LIST_KEYWORDS,
     MEMORY_SEARCH_KEYWORDS,
@@ -39,171 +40,168 @@ AMBIGUOUS_FILE_READ_KEYWORDS = {
 }
 
 
+def _match_kw(kw: str, text: str) -> bool:
+    """Check if keyword matches as a distinct whole phrase using regex word boundaries."""
+    pattern = rf"\b{re.escape(kw)}\b"
+    return bool(re.search(pattern, text, flags=re.IGNORECASE))
+
+
+def _match_any(keywords: set[str] | list[str], text: str) -> bool:
+    """Check if any keyword in the set matches text using whole-word regex boundaries."""
+    return any(_match_kw(kw, text) for kw in keywords)
+
+
 class IntentRouter:
     """Decoupled intent classifier mapping user text to IntentResult objects."""
 
     def classify(self, user_input: str) -> IntentResult:
         text = user_input.lower().strip()
 
-        # ── 1. Memory Clear (check before general memory) ─────────
-        for kw in MEMORY_CLEAR_KEYWORDS:
-            if kw in text:
-                res = IntentResult(intent_name="MEMORY_CLEAR")
+        # ── 1. Power Control (Safety critical system control) ──────
+        if _match_any(POWER_KEYWORDS, text):
+            action = "shutdown"
+            if any(_match_kw(w, text) for w in ("restart", "reboot")):
+                action = "restart"
+            elif any(_match_kw(w, text) for w in ("sleep", "hibernate")):
+                action = "sleep"
+            res = IntentResult(
+                intent_name="POWER_CONTROL",
+                args={"action": action, "delay": 60},
+            )
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        # ── 2. Memory Subsystem Operations ───────────────────────
+        if _match_any(MEMORY_CLEAR_KEYWORDS, text):
+            res = IntentResult(intent_name="MEMORY_CLEAR")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        if _match_any(MEMORY_EXPORT_KEYWORDS, text):
+            res = IntentResult(intent_name="MEMORY_EXPORT")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        if _match_any(MEMORY_SUMMARIZE_KEYWORDS, text):
+            query = text
+            for k in MEMORY_SUMMARIZE_KEYWORDS:
+                query = re.sub(rf"\b{re.escape(k)}\b", "", query, flags=re.IGNORECASE)
+            res = IntentResult(
+                intent_name="MEMORY_SUMMARIZE",
+                args={"query": query.strip()},
+            )
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        if _match_any(MEMORY_DELETE_KEYWORDS, text):
+            query = text
+            for k in MEMORY_DELETE_KEYWORDS:
+                query = re.sub(rf"\b{re.escape(k)}\b", "", query, flags=re.IGNORECASE)
+            res = IntentResult(
+                intent_name="MEMORY_DELETE",
+                args={"query": query.strip()},
+            )
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        if _match_any(MEMORY_SEARCH_KEYWORDS, text):
+            query = text
+            for k in MEMORY_SEARCH_KEYWORDS:
+                query = re.sub(rf"\b{re.escape(k)}\b", "", query, flags=re.IGNORECASE)
+            res = IntentResult(
+                intent_name="MEMORY_SEARCH",
+                args={"query": query.strip()},
+            )
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        if _match_any(MEMORY_STATS_KEYWORDS, text):
+            res = IntentResult(intent_name="MEMORY_STATS")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        if _match_any(MEMORY_LIST_KEYWORDS, text):
+            res = IntentResult(intent_name="MEMORY_LIST")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        # ── 3. Shell Command Priority (Check BEFORE semantic status/file intents) ─
+        run_res = self._detect_run_command(text, user_input)
+        if run_res:
+            logger.debug(f"Classified '{user_input}' -> {run_res}")
+            return run_res
+
+        # ── 4. Device Controls (Brightness, Volume, Wi-Fi) ────────
+        if _match_any(BRIGHTNESS_KEYWORDS, text):
+            digits = re.findall(r"\d+", text)
+            if digits:
+                level = int(digits[0])
+                action = "set"
+            elif any(_match_kw(w, text) for w in ("set", "dim", "brighten", "change")):
+                level = 50
+                action = "set"
+            else:
+                action = "get"
+                level = None
+            args = {"action": action}
+            if level is not None:
+                args["level"] = level
+            res = IntentResult(intent_name="BRIGHTNESS_CONTROL", args=args)
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        if _match_any(VOLUME_KEYWORDS, text):
+            if _match_kw("unmute", text):
+                res = IntentResult(intent_name="VOLUME_CONTROL", args={"action": "unmute"})
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+            elif _match_kw("mute", text):
+                res = IntentResult(intent_name="VOLUME_CONTROL", args={"action": "mute"})
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 2. Memory Export ─────────────────────────────────────
-        for kw in MEMORY_EXPORT_KEYWORDS:
-            if kw in text:
-                res = IntentResult(intent_name="MEMORY_EXPORT")
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
+            digits = re.findall(r"\d+", text)
+            if digits:
+                level = int(digits[0])
+                action = "set"
+            elif any(_match_kw(w, text) for w in ("set", "turn up", "turn down", "change")):
+                level = 50
+                action = "set"
+            else:
+                action = "get"
+                level = None
+            args = {"action": action}
+            if level is not None:
+                args["level"] = level
+            res = IntentResult(intent_name="VOLUME_CONTROL", args=args)
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
 
-        # ── 3. Memory Summarize (AI reasoning over memory) ───────
-        for kw in MEMORY_SUMMARIZE_KEYWORDS:
-            if kw in text:
-                query = text
-                for k in MEMORY_SUMMARIZE_KEYWORDS:
-                    query = query.replace(k, "")
-                res = IntentResult(
-                    intent_name="MEMORY_SUMMARIZE",
-                    args={"query": query.strip()},
-                )
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
+        if _match_any(WIFI_KEYWORDS, text):
+            if any(_match_kw(w, text) for w in ("list", "available", "scan")):
+                action = "list"
+            elif any(_match_kw(w, text) for w in ("turn on", "enable", "wifi on")):
+                action = "on"
+            elif any(_match_kw(w, text) for w in ("turn off", "disable", "wifi off")):
+                action = "off"
+            elif _match_kw("connect", text):
+                action = "connect"
+            else:
+                action = "status"
+            res = IntentResult(intent_name="WIFI_CONTROL", args={"action": action})
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
 
-        # ── 4. Memory Delete / Forget ─────────────────────────────
-        for kw in MEMORY_DELETE_KEYWORDS:
-            if kw in text:
-                query = text
-                for k in MEMORY_DELETE_KEYWORDS:
-                    query = query.replace(k, "")
-                res = IntentResult(
-                    intent_name="MEMORY_DELETE",
-                    args={"query": query.strip()},
-                )
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
+        # ── 5. System Status Query ────────────────────────────────
+        if _match_any(SYSTEM_KEYWORDS, text):
+            res = IntentResult(intent_name="SYSTEM_STATUS")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
 
-        # ── 5. Memory Search ─────────────────────────────────────
-        for kw in MEMORY_SEARCH_KEYWORDS:
-            if kw in text:
-                query = text
-                for k in MEMORY_SEARCH_KEYWORDS:
-                    query = query.replace(k, "")
-                res = IntentResult(
-                    intent_name="MEMORY_SEARCH",
-                    args={"query": query.strip()},
-                )
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
-
-        # ── 6. Memory Stats / Summary ────────────────────────────
-        for kw in MEMORY_STATS_KEYWORDS:
-            if kw in text:
-                res = IntentResult(intent_name="MEMORY_STATS")
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
-
-        # ── 7. Memory List ───────────────────────────────────────
-        for kw in MEMORY_LIST_KEYWORDS:
-            if kw in text:
-                res = IntentResult(intent_name="MEMORY_LIST")
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
-
-        # ── 8. Power Control (check early for safety) ─────────────
-        for kw in POWER_KEYWORDS:
-            if kw in text:
-                action = "shutdown"
-                if any(w in text for w in ("restart", "reboot")):
-                    action = "restart"
-                elif any(w in text for w in ("sleep", "hibernate")):
-                    action = "sleep"
-                res = IntentResult(
-                    intent_name="POWER_CONTROL",
-                    args={"action": action, "delay": 60},
-                )
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
-
-        # ── 9. Brightness Control ──────────────────────────────────
-        for kw in BRIGHTNESS_KEYWORDS:
-            if kw in text:
-                digits = re.findall(r"\d+", text)
-                if digits:
-                    level = int(digits[0])
-                    action = "set"
-                elif any(w in text for w in ("set", "dim", "brighten", "change")):
-                    level = 50
-                    action = "set"
-                else:
-                    action = "get"
-                    level = None
-                args = {"action": action}
-                if level is not None:
-                    args["level"] = level
-                res = IntentResult(intent_name="BRIGHTNESS_CONTROL", args=args)
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
-
-        # ── 10. Volume Control ─────────────────────────────────────
-        for kw in VOLUME_KEYWORDS:
-            if kw in text:
-                if "unmute" in text:
-                    res = IntentResult(intent_name="VOLUME_CONTROL", args={"action": "unmute"})
-                    logger.debug(f"Classified '{user_input}' -> {res}")
-                    return res
-                elif "mute" in text:
-                    res = IntentResult(intent_name="VOLUME_CONTROL", args={"action": "mute"})
-                    logger.debug(f"Classified '{user_input}' -> {res}")
-                    return res
-
-                digits = re.findall(r"\d+", text)
-                if digits:
-                    level = int(digits[0])
-                    action = "set"
-                elif any(w in text for w in ("set", "turn up", "turn down", "change")):
-                    level = 50
-                    action = "set"
-                else:
-                    action = "get"
-                    level = None
-                args = {"action": action}
-                if level is not None:
-                    args["level"] = level
-                res = IntentResult(intent_name="VOLUME_CONTROL", args=args)
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
-
-        # ── 11. Wi-Fi Control ──────────────────────────────────────
-        for kw in WIFI_KEYWORDS:
-            if kw in text:
-                if any(w in text for w in ("list", "available", "scan")):
-                    action = "list"
-                elif any(w in text for w in ("turn on", "enable", "wifi on")):
-                    action = "on"
-                elif any(w in text for w in ("turn off", "disable", "wifi off")):
-                    action = "off"
-                elif "connect" in text:
-                    action = "connect"
-                else:
-                    action = "status"
-                res = IntentResult(intent_name="WIFI_CONTROL", args={"action": action})
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
-
-        # ── 12. System Status ─────────────────────────────────────
-        for kw in SYSTEM_KEYWORDS:
-            if kw in text:
-                res = IntentResult(intent_name="SYSTEM_STATUS")
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
-
-        # ── 9. File Reading (read, summarize, contents of, explain, send, show) ─
+        # ── 6. File Operations (Read, Content Search, Open, Search) ─
         has_file_path = bool(re.search(r"(\b~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.(?:pdf|txt|md|py|js|ts|json|csv|html|css|cpp|c|java))\b", text))
         for kw in FILE_READ_KEYWORDS:
-            if kw in text:
+            if _match_kw(kw, text):
                 extracted_path = self._extract_path(user_input, kw)
                 if kw in AMBIGUOUS_FILE_READ_KEYWORDS and not has_file_path and extracted_path not in ("active_file",):
                     continue
@@ -214,9 +212,8 @@ class IntentRouter:
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 10. File content search ───────────────────────────────
         for kw in FILE_CONTENT_KEYWORDS:
-            if kw in text:
+            if _match_kw(kw, text):
                 query, target_file = self._extract_content_search_args(user_input, kw)
                 res = IntentResult(
                     intent_name="FILE_CONTENT_SEARCH",
@@ -225,9 +222,8 @@ class IntentRouter:
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 11. Reminder ──────────────────────────────────────────
         for kw in REMINDER_KEYWORDS:
-            if kw in text:
+            if _match_kw(kw, text):
                 delay, message = self._parse_reminder(text)
                 res = IntentResult(
                     intent_name="SET_REMINDER",
@@ -236,7 +232,6 @@ class IntentRouter:
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 12. Open file ─────────────────────────────────────────
         for kw in OPEN_KEYWORDS:
             if text.startswith(kw + " "):
                 path = self._extract_path(user_input[len(kw):].strip(), kw)
@@ -247,22 +242,8 @@ class IntentRouter:
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
 
-        # ── 13. Run command ───────────────────────────────────────
-        for kw in RUN_KEYWORDS:
-            if text.startswith(kw + " "):
-                cmd = user_input[len(kw):].strip()
-                if cmd.lower().startswith("command "):
-                    cmd = cmd[len("command "):]
-                res = IntentResult(
-                    intent_name="RUN_COMMAND",
-                    args={"command": cmd},
-                )
-                logger.debug(f"Classified '{user_input}' -> {res}")
-                return res
-
-        # ── 14. File search (broad search) ────────────────────────
         for kw in FILE_SEARCH_KEYWORDS:
-            if kw in text:
+            if _match_kw(kw, text):
                 query = self._extract_file_query(text, kw)
                 if query:
                     res = IntentResult(
@@ -272,9 +253,9 @@ class IntentRouter:
                     logger.debug(f"Classified '{user_input}' -> {res}")
                     return res
 
-        if any(noun in text for noun in FILE_NOUNS):
+        if any(_match_kw(noun, text) for noun in FILE_NOUNS):
             for kw in ("find", "where", "locate", "search", "look"):
-                if kw in text:
+                if _match_kw(kw, text):
                     query = self._extract_file_query(text, kw)
                     if query:
                         res = IntentResult(
@@ -288,6 +269,30 @@ class IntentRouter:
         res = IntentResult(intent_name="GENERAL")
         logger.debug(f"Classified '{user_input}' -> {res}")
         return res
+
+    def _detect_run_command(self, text: str, user_input: str) -> IntentResult | None:
+        """Detect explicit shell command execution requests or known CLI binary invocations."""
+        # 1. Prefix triggers in RUN_KEYWORDS (e.g., "run intel_gpu_top", "execute git status")
+        for kw in RUN_KEYWORDS:
+            if text.startswith(kw + " "):
+                cmd = user_input[len(kw):].strip()
+                if cmd.lower().startswith("command "):
+                    cmd = cmd[len("command "):].strip()
+                if cmd:
+                    return IntentResult(intent_name="RUN_COMMAND", args={"command": cmd})
+
+        # 2. First word is a known CLI tool or executable script (e.g. "intel_gpu_top", "nvidia-smi", "python main.py")
+        words = text.split()
+        if words:
+            first_word = words[0].rstrip(";:,")
+            if first_word in KNOWN_SHELL_COMMANDS or first_word.endswith((".py", ".sh", ".bin", ".pl")):
+                # Exclude ambiguous conversational prefixes if any
+                if first_word in ("do", "shell", "exec") and len(words) > 1 and words[1] in ("you", "i", "we", "the", "a", "this"):
+                    return None
+                return IntentResult(intent_name="RUN_COMMAND", args={"command": user_input.strip()})
+
+        return None
+
 
     def _extract_path(self, text: str, trigger_keyword: str) -> str:
         # Match path starting with /, ~/, home/, or standard filenames, stripping quotes

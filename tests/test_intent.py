@@ -48,6 +48,34 @@ class TestIntentRouter(unittest.TestCase):
         self.assertEqual(res.intent_name, "RUN_COMMAND")
         self.assertEqual(res.args.get("command"), "ls -la")
 
+    def test_shell_command_routing_regression(self):
+        """Verify safety-critical shell command routing precedence and regex word boundary checks."""
+        test_cases = [
+            ("run intel_gpu_top", "RUN_COMMAND", "intel_gpu_top"),
+            ("intel_gpu_top", "RUN_COMMAND", "intel_gpu_top"),
+            ("run nvidia-smi", "RUN_COMMAND", "nvidia-smi"),
+            ("nvidia-smi", "RUN_COMMAND", "nvidia-smi"),
+            ("check gpu usage", "SYSTEM_STATUS", None),
+            ("gpu usage", "SYSTEM_STATUS", None),
+            ("run python main.py", "RUN_COMMAND", "python main.py"),
+            ("python main.py", "RUN_COMMAND", "python main.py"),
+            ("run ls", "RUN_COMMAND", "ls"),
+            ("run git status", "RUN_COMMAND", "git status"),
+            ("git status", "RUN_COMMAND", "git status"),
+            ("run command ls -la", "RUN_COMMAND", "ls -la"),
+        ]
+
+        for query, expected_intent, expected_cmd in test_cases:
+            res = self.router.classify(query)
+            self.assertEqual(
+                res.intent_name,
+                expected_intent,
+                f"Query '{query}' classified as '{res.intent_name}', expected '{expected_intent}'"
+            )
+            if expected_cmd is not None:
+                self.assertEqual(res.args.get("command"), expected_cmd)
+
+
     def test_general_fallback_intent(self):
         res = self.router.classify("what is 2 + 2?")
         self.assertEqual(res.intent_name, "GENERAL")
