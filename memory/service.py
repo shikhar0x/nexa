@@ -88,6 +88,12 @@ class MemoryService:
             for r in rows
         ]
 
+    def get_recent_conversation(self, limit: int = 6) -> list[dict[str, str]]:
+        """Return the N most recent conversation turns in chronological order."""
+        recent = self.list_recent_memories(limit=limit)
+        return [{"role": item["role"], "content": item["content"]} for item in reversed(recent)]
+
+
     def search_memories(self, query: str, top_k: int = 5) -> list[str]:
         """Perform vector search on ChromaDB for memories matching query."""
         return search_memory(query, top_k=top_k)

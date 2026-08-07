@@ -1,25 +1,86 @@
+import platform
 import psutil
 from typing import Any
 from infrastructure.os import os_adapter
 
 
-def get_system_data() -> dict[str, Any]:
-    """Return structured system data as a dict."""
-    cpu = psutil.cpu_percent(interval=1)
-    ram = psutil.virtual_memory()
+def _get_cpu_name() -> str:
+    """Attempt to extract exact CPU model name from /proc/cpuinfo or platform."""
+    try:
+        with open("/proc/cpuinfo", "r", encoding="utf-8") as f:
+            for line in f:
+                if "model name" in line.lower():
+                    return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    proc = platform.processor()
+    if proc:
+        return proc
+    return f"{platform.machine()} CPU"
 
-    # Query system drive root via active OS adapter
+
+def _get_gpu_name() -> str:
+    """Attempt to extract GPU model name via lspci on Linux."""
+    try:
+        res = os_adapter.run_command(["lspci"], timeout=3)
+        if res.returncode == 0:
+            gpu_lines = []
+            for line in res.stdout.splitlines():
+                if any(k in line.lower() for k in ("vga compatible controller", "3d controller", "display controller")):
+                    parts = line.split(":", 2)
+                    gpu_name = parts[-1].strip() if len(parts) >= 3 else line
+                    gpu_lines.append(gpu_name)
+            if gpu_lines:
+                return "; ".join(gpu_lines)
+    except Exception:
+        pass
+    return "Integrated/Generic Graphics"
+
+
+def get_system_data() -> dict[str, Any]:
+    """Return structured real-time system hardware data as a dict."""
+    cpu_percent = psutil.cpu_percent(interval=0.5)
+    cpu_name = _get_cpu_name()
+    cpu_count_logical = psutil.cpu_count(logical=True) or 1
+    cpu_count_physical = psutil.cpu_count(logical=False) or cpu_count_logical
+
+    try:
+        freq = psutil.cpu_freq()
+        cpu_freq_ghz = round(freq.current / 1000, 2) if freq and freq.current else None
+    except Exception:
+        cpu_freq_ghz = None
+
+    gpu_name = _get_gpu_name()
+
+    ram = psutil.virtual_memory()
+    ram_used_gb = round(ram.used / (1024**3), 2)
+    ram_total_gb = round(ram.total / (1024**3), 2)
+    ram_free_gb = round(ram.available / (1024**3), 2)
+    ram_percent = ram.percent
+
     drive = os_adapter.get_system_drive()
     disk = psutil.disk_usage(drive)
+    disk_used_gb = round(disk.used / (1024**3), 2)
+    disk_total_gb = round(disk.total / (1024**3), 2)
+    disk_free_gb = round(disk.free / (1024**3), 2)
+    disk_percent = disk.percent
 
     data: dict[str, Any] = {
-        "cpu_percent": cpu,
-        "ram_percent": ram.percent,
-        "ram_free_gb": round(ram.available / (1024**3), 1),
-        "ram_total_gb": round(ram.total / (1024**3), 1),
-        "disk_percent": disk.percent,
-        "disk_free_gb": round(disk.free / (1024**3), 1),
+        "cpu_name": cpu_name,
+        "cpu_cores_logical": cpu_count_logical,
+        "cpu_cores_physical": cpu_count_physical,
+        "cpu_freq_ghz": cpu_freq_ghz,
+        "cpu_percent": cpu_percent,
+        "gpu_name": gpu_name,
+        "ram_percent": ram_percent,
+        "ram_used_gb": ram_used_gb,
+        "ram_total_gb": ram_total_gb,
+        "ram_free_gb": ram_free_gb,
         "system_drive": drive,
+        "disk_percent": disk_percent,
+        "disk_used_gb": disk_used_gb,
+        "disk_total_gb": disk_total_gb,
+        "disk_free_gb": disk_free_gb,
     }
 
     battery = psutil.sensors_battery()
@@ -45,16 +106,19 @@ def get_system_data() -> dict[str, Any]:
 
 
 def format_system_data(data: dict[str, Any]) -> str:
-    """Format system data dictionary into text lines."""
+    """Format system data dictionary into text lines with exact numbers."""
+    freq_str = f" @ {data['cpu_freq_ghz']} GHz" if data.get("cpu_freq_ghz") else ""
     lines = [
-        f"CPU usage: {data['cpu_percent']}%",
-        f"RAM: {data['ram_percent']}% used ({data['ram_free_gb']}GB free of {data['ram_total_gb']}GB)",
-        f"Disk ({data.get('system_drive', '/')}): {data['disk_percent']}% used ({data['disk_free_gb']}GB free)",
+        f"CPU: {data['cpu_name']} ({data['cpu_cores_logical']} logical cores / {data['cpu_cores_physical']} physical){freq_str} - {data['cpu_percent']}% usage",
+        f"GPU: {data['gpu_name']}",
+        f"RAM: {data['ram_used_gb']} GB used of {data['ram_total_gb']} GB total ({data['ram_percent']}% used, {data['ram_free_gb']} GB available)",
+        f"Storage ({data.get('system_drive', '/')}): {data['disk_used_gb']} GB used of {data['disk_total_gb']} GB total ({data['disk_percent']}% used, {data['disk_free_gb']} GB free)",
     ]
     if data.get("battery_percent") is not None:
-        status = "charging" if data["battery_plugged"] else "on battery"
+        status = "charging" if data["battery_plugged"] else "discharging"
         lines.append(f"Battery: {data['battery_percent']}% ({status})")
     if data.get("temperature_c"):
-        lines.append(f"Temperature: {data['temperature_c']}°C ({data['temperature_sensor']})")
+        lines.append(f"Temperature: {data['temperature_c']}°C ({data.get('temperature_sensor', 'sensor')})")
 
-    return "Current system status:\n" + "\n".join(lines)
+    return "Real-time System Hardware & Status:\n" + "\n".join(lines)
+

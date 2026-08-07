@@ -112,8 +112,10 @@ class Dispatcher:
                 return rendered
 
         # 5. Native token streaming LLM response generation via ConsoleRenderer
+        context.recent_history = self.memory.get_recent_conversation(limit=6)
         chunk_generator = self.llm.stream(context)
         response = self.renderer.render_stream(chunk_generator)
+
 
         # 6. Store turn exchange in memory & update workspace state
         self.memory.store_exchange(user_input, response)

@@ -13,6 +13,16 @@ class TestIntentRouter(unittest.TestCase):
         res2 = self.router.classify("what's my CPU usage like?")
         self.assertEqual(res2.intent_name, "SYSTEM_STATUS")
 
+        res3 = self.router.classify("give me the stats f the hardware components in exact number")
+        self.assertEqual(res3.intent_name, "SYSTEM_STATUS")
+
+        res4 = self.router.classify("what do you see?")
+        self.assertEqual(res4.intent_name, "SYSTEM_STATUS")
+
+        res5 = self.router.classify("check hardware specs")
+        self.assertEqual(res5.intent_name, "SYSTEM_STATUS")
+
+
     def test_file_search_intent(self):
         res = self.router.classify("find my latest DBMS presentation")
         self.assertEqual(res.intent_name, "FILE_SEARCH")

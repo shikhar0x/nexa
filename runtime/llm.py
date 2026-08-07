@@ -21,14 +21,18 @@ class LLMEngine:
         prompt = self._build_prompt(context)
         logger.debug(f"Streaming prompt to Ollama model '{self.model_name}'...")
 
+        messages = [{"role": "system", "content": prompt}]
+        if context.recent_history:
+            for item in context.recent_history:
+                messages.append({"role": item["role"], "content": item["content"]})
+        messages.append({"role": "user", "content": context.user_input})
+
         response_stream = ollama.chat(
             model=self.model_name,
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": context.user_input},
-            ],
+            messages=messages,
             stream=True,
         )
+
 
         for chunk in response_stream:
             content = chunk.get("message", {}).get("content", "")

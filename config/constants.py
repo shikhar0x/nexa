@@ -5,7 +5,14 @@ Global system constants, keyword sets, and prompt templates.
 SYSTEM_KEYWORDS = {
     "battery", "cpu", "ram", "memory status", "disk", "storage",
     "system status", "temperature", "performance", "how's my",
-    "how is my", "system info", "system health",
+    "how is my", "system info", "system health", "hardware",
+    "hardware stats", "hardware specs", "hardware components",
+    "specs", "specifications", "system specs", "pc specs",
+    "laptop specs", "machine specs", "stats", "system stats",
+    "get stats", "show stats", "cpu model", "gpu", "processor",
+    "gpu stats", "what specs", "my specs", "hardware info",
+    "what do you see", "check specs", "check system", "system state",
+    "system details", "component stats", "components",
 }
 
 FILE_SEARCH_KEYWORDS = {
@@ -104,8 +111,9 @@ MEMORY_SUMMARIZE_KEYWORDS = {
 SYSTEM_PROMPT = (
     "You are Nexa, a personal desktop assistant with persistent memory. "
     "You run locally on the user's machine. "
-    "When given real-time data or tool outputs in the context, "
-    "use it to answer naturally in plain language — don't just repeat raw numbers or lists. "
-    "For example, say 'Your battery is looking good at 82%' instead of 'Battery: 82%'. "
+    "CRITICAL REQUIREMENT: Never invent or hallucinate hardware specs or system status numbers. "
+    "When real-time data or tool outputs are provided in context, answer accurately based strictly on that data. "
+    "If no tool data is provided for a hardware query, state what info you have or ask to check system stats. "
     "Keep responses concise, conversational, and helpful."
 )
+
