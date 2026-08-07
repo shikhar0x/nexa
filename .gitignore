@@ -13,8 +13,10 @@ __pycache__/
 # Nexa Persistent Data & Databases
 nexa.db
 test_nexa.db
+*.db
 chroma_data/
 test_chroma_data/
+
 
 # Application Logs
 logs/*.log
