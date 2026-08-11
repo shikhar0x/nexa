@@ -1,14 +1,54 @@
 import os
+import time
 from dataclasses import asdict
 from typing import Any
-from skills.base import BaseSkill, SkillResult, Capability
+from skills.base import BaseSkill, SkillResult, Capability, PendingAction
 from skills.schemas import FileSearchResultData
 from infrastructure.search.oswalk import OsWalkSearchBackend, format_search_results
+
+from skills.path_resolver import resolve_path
 
 try:
     from PyPDF2 import PdfReader
 except ImportError:
     PdfReader = None
+
+
+import re
+from config.settings import settings
+from config.logger import logger
+
+FILLER_WORDS = {
+    "find", "search", "file", "files", "related", "about", "containing",
+    "named", "called", "for", "to", "my", "the", "a", "an", "latest",
+    "document", "documents", "folder", "folders", "look", "locate",
+    "is", "where", "are", "me", "can", "you", "in", "inside", "of",
+    "show", "get", "display", "all", "any", "some", "with",
+}
+
+
+def normalize_file_query(query: str) -> str:
+    """
+    Normalizes a file search query by stripping punctuation, converting to lowercase,
+    normalizing whitespace, and removing natural language filler words.
+    """
+    if not query:
+        return ""
+
+    text = query.lower().strip()
+
+    # Strip punctuation except hyphens/underscores/dots inside extensions
+    text = re.sub(r"[^\w\s\.-]", " ", text)
+    text = re.sub(r"\.+$", "", text)
+    text = re.sub(r"\.+(?=\s)", " ", text)
+
+    words = text.split()
+    filtered = [w.strip(".,;:!?") for w in words if w.strip(".,;:!?") not in FILLER_WORDS]
+
+    if not filtered:
+        filtered = [w.strip(".,;:!?") for w in words if w.strip(".,;:!?")]
+
+    return " ".join(filtered).strip()
 
 
 class FileSearchSkill(BaseSkill):
@@ -29,29 +69,63 @@ class FileSearchSkill(BaseSkill):
         self.backend = backend or OsWalkSearchBackend()
 
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
-        query = args.get("query", "")
-        if not query:
+        raw_query = args.get("query", "")
+        search_path = args.get("search_path") or args.get("root")
+
+        if not raw_query:
             return SkillResult(success=False, message="No search query provided.", use_llm=False)
 
-        results = self.backend.search_filenames(query)
+        if args.get("ask_directory") and not search_path:
+            return SkillResult(
+                success=False,
+                message="Which directory should I search?",
+                use_llm=False,
+                pending_action=PendingAction(
+                    skill_name=self.name,
+                    args=dict(args),
+                    missing_args=["search_path"],
+                    prompt="Which directory should I search?",
+                    timestamp=time.time(),
+                ),
+            )
 
-        # Also search PDFs if keywords match
-        pdf_results = []
-        if any(kw in query.lower() for kw in ("presentation", "pdf", "document", "report")):
-            pdf_results = self.backend.search_pdf_content(query)
+        normalized_query = normalize_file_query(raw_query)
+        search_root_str = str(resolve_path(search_path)) if search_path else None
 
-        # Clean PDF result strings (e.g. "/path/to.pdf (page 1)" -> "/path/to.pdf")
-        clean_pdf_paths = [p.split(" (page ")[0] for p in pdf_results if " (page " in p]
-        all_results = results + [p for p in clean_pdf_paths if p not in results]
+        filename_matches, files_scanned = self.backend.search_filenames_with_stats(
+            normalized_query, search_path=search_root_str
+        )
 
-        # Update active_file in workspace_state if at least one file match is found
+        content_matches = []
+        if not filename_matches:
+            # Automatic content search fallback when filename matches are 0
+            content_matches = self.backend.search_content_fallback(
+                normalized_query, search_path=search_root_str
+            )
+            all_results = content_matches
+        else:
+            all_results = filename_matches
+
+        # Debug logging as required
+        if settings.debug:
+            logger.debug(
+                f"\n[FILE_SEARCH DEBUG TRACE]\n"
+                f"  raw query                : '{raw_query}'\n"
+                f"  normalized query         : '{normalized_query}'\n"
+                f"  search root              : '{search_root_str or 'PRIORITY_DIRS/HOME'}'\n"
+                f"  number of files scanned  : {files_scanned}\n"
+                f"  number of filename matches: {len(filename_matches)}\n"
+                f"  number of content matches : {len(content_matches)}\n"
+                f"[END FILE_SEARCH TRACE]\n"
+            )
+
         if all_results:
             context.workspace_state["active_file"] = all_results[0]
 
-        message = format_search_results(all_results, query)
+        message = format_search_results(all_results, raw_query)
         schema_data = asdict(
             FileSearchResultData(
-                query=query,
+                query=normalized_query,
                 results_count=len(all_results),
                 results=all_results,
                 search_backend="OsWalkSearchBackend",
@@ -90,7 +164,9 @@ class FileContentSearchSkill(BaseSkill):
         target_file = args.get("target_file", "").strip()
 
         # Check if target_file is active_file or mentioned
-        if not target_file:
+        if target_file:
+            target_file = str(resolve_path(target_file))
+        else:
             active_file = context.workspace_state.get("active_file")
             if active_file and os.path.exists(active_file):
                 target_file = active_file

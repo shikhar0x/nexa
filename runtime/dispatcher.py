@@ -30,6 +30,9 @@ from config.settings import settings
 from config.logger import logger
 
 
+from runtime.clarification import ClarificationResolver
+
+
 class Dispatcher:
     """
     Central runtime orchestrator driving Nexa execution flow:
@@ -54,7 +57,9 @@ class Dispatcher:
         self.memory = memory or MemoryService()
         self.scheduler = scheduler or Scheduler()
         self.renderer = renderer or ConsoleRenderer()
+        self.clarification_resolver = ClarificationResolver()
         self.workspace_state: dict[str, Any] = {}
+        self.current_context: Optional[ConversationContext] = None
 
     def initialize(self) -> None:
         """Initialize databases, logger, and register default skills."""
@@ -94,24 +99,88 @@ class Dispatcher:
         ):
             self.registry.register_alias(intent_name, mem_skill)
 
-    def process(self, user_input: str) -> str:
+    def process(self, user_input: str, context: Optional[ConversationContext] = None) -> str:
         """Process a single turn of user input through the system pipeline."""
         start_time = time.time()
         logger.info(f"Processing turn for input: '{user_input}'")
 
-        # 1. Intent Recognition via abstract classifier
-        intent = self.router.classify(user_input)
+        # 1. Reuse or create conversation context (enabling stateless dispatcher operation)
+        if context is None:
+            if self.current_context is None:
+                self.current_context = ConversationContext(user_input=user_input)
+            else:
+                self.current_context.user_input = user_input
+            context = self.current_context
+        else:
+            context.user_input = user_input
 
-        # 2. Context creation & workspace state injection
-        context = ConversationContext(user_input=user_input)
+        # Check pending action timeout
+        if context.pending_action and getattr(context.pending_action, "timestamp", None):
+            elapsed = time.time() - context.pending_action.timestamp
+            if elapsed > settings.pending_action_timeout:
+                if settings.debug:
+                    logger.debug(f"[DEBUG TRACE] PendingAction expired (elapsed {round(elapsed, 1)}s > {settings.pending_action_timeout}s)")
+                context.pending_action = None
+
+        # 2. Intent Recognition via abstract classifier
+        intent = self.router.classify(user_input)
         context.conversation_state["intent"] = intent.intent_name
         context.workspace_state = self.workspace_state.copy()
 
-        # 3. Retrieve persistent memory context (for non-memory intents)
+        # 3. Handle Pending Action Clarification Resolution
+        if context.pending_action:
+            pending = context.pending_action
+
+            # Explicit cancellation check
+            if self.clarification_resolver.is_cancellation(user_input):
+                if settings.debug:
+                    logger.debug(f"[DEBUG TRACE] PendingAction cleared by explicit user cancellation: {pending.skill_name}")
+                context.pending_action = None
+                rendered = self.renderer.render_static("Cancelled.")
+                self.memory.store_exchange(user_input, "Cancelled.")
+                return rendered
+
+            # New explicit tool workflow clears pending action
+            if intent.intent_name not in ("GENERAL", "DIRECTORY_LISTING", "FILE_SEARCH"):
+                if settings.debug:
+                    logger.debug(f"[DEBUG TRACE] PendingAction cleared due to new tool workflow '{intent.intent_name}'")
+                context.pending_action = None
+            else:
+                # Attempt clarification resolution
+                resolved_args = self.clarification_resolver.resolve(user_input, pending.missing_args, context)
+                if resolved_args is not None:
+                    if settings.debug:
+                        logger.debug(f"[DEBUG TRACE] Resolved PendingAction clarification: {resolved_args}")
+                        logger.debug(f"[DEBUG TRACE] Re-executing pending skill: '{pending.skill_name}'")
+
+                    pending.args.update(resolved_args)
+                    pending.args.pop("ask_folder", None)
+                    pending.args.pop("ask_directory", None)
+                    pending.args.pop("require_folder", None)
+                    pending_skill = self.registry.get(pending.skill_name)
+                    if pending_skill:
+                        result = pending_skill.execute(pending.args, context)
+                        context.pending_action = result.pending_action
+                        context.skill_result = result
+                        self.workspace_state.update(context.workspace_state)
+
+                        if result.pending_action and settings.debug:
+                            logger.debug(f"[DEBUG TRACE] Created PendingAction: skill={result.pending_action.skill_name}, missing_args={result.pending_action.missing_args}")
+
+                        if not result.use_llm:
+                            rendered = self.renderer.render_static(result.message)
+                            self.memory.store_exchange(user_input, result.message)
+                            self._log_debug_trace(user_input, intent.intent_name, [pending_skill], result, start_time, False)
+                            return rendered
+                elif intent.intent_name == "GENERAL":
+                    if settings.debug:
+                        logger.debug(f"[DEBUG TRACE] Intermediate GENERAL query; retaining active PendingAction '{pending.skill_name}'")
+
+        # 4. Retrieve persistent memory context (for non-memory intents)
         if not intent.intent_name.startswith("MEMORY_"):
             context.memory_context = self.memory.get_context(user_input)
 
-        # 4. Resolve capability skills dynamically (supporting generic fan-out aggregation)
+        # 5. Resolve capability skills dynamically
         matched_skills = self.resolver.resolve(intent.intent_name, user_input)
         llm_invoked = True
 
@@ -121,13 +190,14 @@ class Dispatcher:
                 logger.info(f"Executing resolved skill '{skill.name}' for intent '{intent.intent_name}'")
                 result = skill.execute(intent.args, context)
             else:
-                # Generic Multi-Skill Fan-Out Aggregation
+                # Multi-Skill Fan-Out Aggregation
                 logger.info(f"Fan-out aggregating skills {[s.name for s in matched_skills]} for intent '{intent.intent_name}'")
                 aggregated_data = {}
                 messages = []
                 success = True
                 use_llm = True
                 allow_interp = True
+                pending_act = None
 
                 for skill in matched_skills:
                     res = skill.execute(intent.args, context)
@@ -137,6 +207,8 @@ class Dispatcher:
                         use_llm = False
                     if not res.allow_interpretation:
                         allow_interp = False
+                    if res.pending_action:
+                        pending_act = res.pending_action
                     aggregated_data[skill.name.lower()] = res.data
                     if res.message:
                         messages.append(res.message)
@@ -147,12 +219,17 @@ class Dispatcher:
                     message="\n\n".join(messages),
                     use_llm=use_llm,
                     allow_interpretation=allow_interp,
+                    pending_action=pending_act,
                 )
 
             context.skill_result = result
+            context.pending_action = result.pending_action
+            if result.pending_action and settings.debug:
+                logger.debug(f"[DEBUG TRACE] Created PendingAction: skill={result.pending_action.skill_name}, missing_args={result.pending_action.missing_args}")
+
             self.workspace_state.update(context.workspace_state)
 
-            # Deterministic skills or static bypass (use_llm = False)
+            # Deterministic skills or static bypass
             if not result.use_llm:
                 llm_invoked = False
                 rendered = self.renderer.render_static(result.message)
@@ -160,12 +237,12 @@ class Dispatcher:
                 self._log_debug_trace(user_input, intent.intent_name, matched_skills, result, start_time, llm_invoked)
                 return rendered
 
-        # 5. LLM Response Generation
+        # 6. LLM Response Generation
         context.recent_history = self.memory.get_recent_conversation(limit=6)
         chunk_generator = self.llm.stream(context)
         response = self.renderer.render_stream(chunk_generator)
 
-        # 6. Store exchange & update workspace state
+        # 7. Store exchange & update workspace state
         self.memory.store_exchange(user_input, response)
         self.workspace_state.update(context.workspace_state)
 

@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from skills.schemas import DirectoryListingData, DirectoryItem
+from skills.path_resolver import resolve_path
 
 
 class DirectoryListingService:
@@ -10,10 +11,7 @@ class DirectoryListingService:
         if not target_path or target_path.lower() in ("active_file", "workspace"):
             path_obj = Path.cwd()
         else:
-            cleaned = target_path.strip().strip("'\"")
-            if cleaned.startswith("home/"):
-                cleaned = "/" + cleaned
-            path_obj = Path(os.path.expanduser(cleaned))
+            path_obj = resolve_path(target_path)
 
         if not path_obj.exists():
             raise FileNotFoundError(f"Path '{path_obj}' does not exist.")

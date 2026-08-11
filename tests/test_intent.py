@@ -41,6 +41,38 @@ class TestIntentRouter(unittest.TestCase):
         self.assertEqual(res.intent_name, "FILE_SEARCH")
         self.assertEqual(res.args.get("query"), "dbms presentation")
 
+    def test_find_intent_routing_distinction(self):
+        """Verify natural language 'find' queries route to FILE_SEARCH while shell 'find' routes to RUN_COMMAND."""
+        nl_queries = [
+            ("Find DBMS files.", "FILE_SEARCH"),
+            ("Find PDF files.", "FILE_SEARCH"),
+            ("Find my notes.", "FILE_SEARCH"),
+            ("Find Telegram reports.", "FILE_SEARCH"),
+            ("find my latest DBMS presentation", "FILE_SEARCH"),
+        ]
+        for query, expected_intent in nl_queries:
+            res = self.router.classify(query)
+            self.assertEqual(
+                res.intent_name,
+                expected_intent,
+                f"Natural language query '{query}' classified as '{res.intent_name}', expected '{expected_intent}'"
+            )
+
+        shell_queries = [
+            ("run find .", "RUN_COMMAND", "find ."),
+            ("find .", "RUN_COMMAND", "find ."),
+            ("find ~/Downloads", "RUN_COMMAND", "find ~/Downloads"),
+            ("find / -name \"*.pdf\"", "RUN_COMMAND", "find / -name \"*.pdf\""),
+        ]
+        for query, expected_intent, expected_cmd in shell_queries:
+            res = self.router.classify(query)
+            self.assertEqual(
+                res.intent_name,
+                expected_intent,
+                f"Shell command query '{query}' classified as '{res.intent_name}', expected '{expected_intent}'"
+            )
+            self.assertEqual(res.args.get("command"), expected_cmd)
+
 
     def test_file_content_search_intent(self):
         res = self.router.classify("search inside files for TODO")

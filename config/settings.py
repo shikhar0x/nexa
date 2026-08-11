@@ -12,6 +12,7 @@ class Settings:
     search_max_results: int = 20
     log_file: str = os.path.join("logs", "nexa.log")
     log_level: str = "INFO"
+    pending_action_timeout: float = 120.0
     debug: bool = os.getenv("NEXA_DEBUG", "0").lower() in ("1", "true", "yes")
 
 

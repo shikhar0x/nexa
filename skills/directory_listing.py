@@ -1,6 +1,7 @@
+import time
 from dataclasses import asdict
 from typing import Any
-from skills.base import BaseSkill, SkillResult, Capability
+from skills.base import BaseSkill, SkillResult, Capability, PendingAction
 from infrastructure.services.directory_listing import DirectoryListingService
 
 
@@ -23,6 +24,20 @@ class DirectoryListingSkill(BaseSkill):
 
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
         target_path = args.get("path", "").strip().strip("'\"")
+
+        if not target_path or (args.get("ask_folder") and not target_path):
+            return SkillResult(
+                success=False,
+                message="Which folder would you like to list?",
+                use_llm=False,
+                pending_action=PendingAction(
+                    skill_name=self.name,
+                    args=dict(args),
+                    missing_args=["path"],
+                    prompt="Which folder would you like to list?",
+                    timestamp=time.time(),
+                ),
+            )
 
         try:
             listing_data = self.service.list_directory(target_path)

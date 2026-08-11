@@ -312,15 +312,48 @@ class IntentRouter(BaseIntentClassifier):
 
         # 2. First word is a known CLI tool or executable script (e.g. "intel_gpu_top", "nvidia-smi", "python main.py")
         words = text.split()
-        if words:
-            first_word = words[0].rstrip(";:,")
-            if first_word in KNOWN_SHELL_COMMANDS or first_word.endswith((".py", ".sh", ".bin", ".pl")):
-                # Exclude ambiguous conversational prefixes if any
-                if first_word in ("do", "shell", "exec") and len(words) > 1 and words[1] in ("you", "i", "we", "the", "a", "this"):
-                    return None
-                if first_word == "find" and len(words) > 1 and words[1] in ("my", "the", "a", "an", "file", "files", "document", "documents", "presentation", "pdf", "inside"):
-                    return None
-                return IntentResult(intent_name="RUN_COMMAND", args={"command": user_input.strip()})
+        if not words:
+            return None
+
+        first_word = words[0].rstrip(";:,")
+
+        # Exclude ambiguous conversational prefixes if any
+        if first_word in ("do", "shell", "exec") and len(words) > 1 and words[1] in ("you", "i", "we", "the", "a", "this"):
+            return None
+
+        # Distinguish natural-language "find" queries from explicit shell "find" commands
+        if first_word == "find":
+            is_shell_find = False
+            if len(words) > 1:
+                arg1 = words[1].strip("'\"")
+                # Shell find paths: ".", "/", "~", "..", or relative/absolute path syntax
+                if arg1 in (".", "/", "~", "..") or arg1.startswith(("./", "/", "~/", "../")):
+                    is_shell_find = True
+                # Shell find flags: -name, -iname, -type, -maxdepth, -exec, etc.
+                elif any(w.startswith("-") for w in words[1:]):
+                    is_shell_find = True
+
+            if not is_shell_find:
+                return None
+
+            return IntentResult(intent_name="RUN_COMMAND", args={"command": user_input.strip()})
+
+        # Distinguish natural-language "grep" queries from explicit shell "grep" commands
+        if first_word == "grep":
+            is_shell_grep = False
+            if len(words) > 1:
+                if any(w.startswith("-") for w in words[1:]):
+                    is_shell_grep = True
+                elif any(w.startswith(("./", "/", "~/", "../")) or "." in w for w in words[2:]):
+                    is_shell_grep = True
+
+            if not is_shell_grep:
+                return None
+
+            return IntentResult(intent_name="RUN_COMMAND", args={"command": user_input.strip()})
+
+        if first_word in KNOWN_SHELL_COMMANDS or first_word.endswith((".py", ".sh", ".bin", ".pl")):
+            return IntentResult(intent_name="RUN_COMMAND", args={"command": user_input.strip()})
 
         return None
 
@@ -427,21 +460,8 @@ class IntentRouter(BaseIntentClassifier):
         return clean.strip().strip("'\""), target_file
 
     def _extract_file_query(self, text: str, trigger_keyword: str) -> str:
-        filler_words = {
-            trigger_keyword, "my", "latest", "the", "a", "an", "for",
-            "called", "named", "is", "where", "are", "me", "can", "you",
-            "find", "search", "look", "locate", "related", "to", "about",
-            "files", "file", "document", "documents",
-        }
-        words = text.split()
-        filtered = [w for w in words if w.lower() not in filler_words]
-        query = " ".join(filtered).strip().strip("'\"")
-
-        generic_nouns = {"file", "files", "document", "documents", "folder", "folders"}
-        stripped_words = [w for w in query.split() if w.lower() not in generic_nouns]
-        if not stripped_words:
-            return ""
-        return query
+        from skills.file_search import normalize_file_query
+        return normalize_file_query(text)
 
 
     def _parse_reminder(self, text: str) -> tuple[int, str]:

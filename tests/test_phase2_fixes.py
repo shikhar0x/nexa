@@ -40,6 +40,18 @@ class TestPhase2Fixes(unittest.TestCase):
         self.assertIn(info.kernel_release, res.message)
         self.assertIn(info.hostname, res.message)
 
+    def test_path_resolver_special_folders(self):
+        """Verify resolve_path maps special folder names to home directory paths."""
+        from skills.path_resolver import resolve_path
+        from pathlib import Path
+
+        self.assertEqual(resolve_path("Downloads"), Path.home() / "Downloads")
+        self.assertEqual(resolve_path("desktop"), Path.home() / "Desktop")
+        self.assertEqual(resolve_path("Documents"), Path.home() / "Documents")
+        self.assertEqual(resolve_path("Pictures"), Path.home() / "Pictures")
+        self.assertEqual(resolve_path("Music"), Path.home() / "Music")
+        self.assertEqual(resolve_path("Videos"), Path.home() / "Videos")
+
     def test_directory_listing_path_extraction(self):
         """Goal 3: Verify robust directory path extraction for various phrasing styles."""
         test_cases = [

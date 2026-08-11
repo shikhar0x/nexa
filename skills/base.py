@@ -13,6 +13,16 @@ class Capability:
 
 
 @dataclass
+class PendingAction:
+    """Represents a skill execution requiring user clarification / missing arguments."""
+    skill_name: str
+    args: dict[str, Any] = field(default_factory=dict)
+    missing_args: list[str] = field(default_factory=list)
+    prompt: str = ""
+    timestamp: float = 0.0
+
+
+@dataclass
 class SkillResult:
     """Standardized result returned by all Nexa skills."""
     success: bool
@@ -21,6 +31,7 @@ class SkillResult:
     metadata: dict[str, Any] = field(default_factory=dict)
     use_llm: bool = True  # If False, Dispatcher returns message directly without calling LLMEngine
     allow_interpretation: bool = False  # If True, LLM may interpret trusted structured data under strict grounding rules
+    pending_action: Optional[PendingAction] = None
 
 
 class BaseSkill:

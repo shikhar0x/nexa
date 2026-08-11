@@ -1,5 +1,6 @@
 from typing import Any
 from skills.base import BaseSkill, SkillResult
+from skills.path_resolver import resolve_path
 from infrastructure.security import confirm_action
 from infrastructure.os import os_adapter
 
@@ -24,6 +25,8 @@ class OpenFileSkill(BaseSkill):
                 message="No path specified to open, and no active file is set in workspace.",
                 use_llm=False,
             )
+
+        path = str(resolve_path(path))
 
         if not confirm_action(f"open '{path}' with your default application"):
             return SkillResult(

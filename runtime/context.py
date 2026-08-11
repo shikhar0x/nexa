@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Optional
-from skills.base import SkillResult
+from skills.base import SkillResult, PendingAction
 
 
 @dataclass
@@ -14,6 +14,7 @@ class ConversationContext:
     workspace_state: dict[str, Any] = field(default_factory=dict)
     user_state: dict[str, Any] = field(default_factory=dict)
     conversation_state: dict[str, Any] = field(default_factory=dict)
+    pending_action: Optional[PendingAction] = None
 
 
     def format_for_llm(self) -> str:

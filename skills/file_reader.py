@@ -2,6 +2,7 @@ import os
 from typing import Any
 
 from skills.base import BaseSkill, SkillResult, Capability
+from skills.path_resolver import resolve_path
 from config.logger import logger
 
 
@@ -55,12 +56,8 @@ class FileReaderSkill(BaseSkill):
                 use_llm=False,  # Factual error bypasses LLM
             )
 
-        if path.startswith("home/"):
-            path = "/" + path
-        path = os.path.expanduser(path)
-
-        if not os.path.exists(path) and os.path.exists("/" + path):
-            path = "/" + path
+        resolved = resolve_path(path)
+        path = str(resolved)
 
         if not os.path.exists(path):
             return SkillResult(
