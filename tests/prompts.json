@@ -1,0 +1,139 @@
+[
+  {
+    "input": "List files in Downloads",
+    "expected_intent": "DIRECTORY_LISTING",
+    "expected_skill": "DIRECTORY_LISTING",
+    "expected_args_subset": {
+      "path": "Downloads"
+    },
+    "notes": "Standard directory listing prompt for Downloads folder"
+  },
+  {
+    "input": "Find DBMS files",
+    "expected_intent": "FILE_SEARCH",
+    "expected_skill": "FILE_SEARCH",
+    "expected_args_subset": {
+      "query": "dbms"
+    },
+    "notes": "Natural language file search query"
+  },
+  {
+    "input": "Summarize report.pdf",
+    "expected_intent": "FILE_READ",
+    "expected_skill": "FILE_READ",
+    "expected_args_subset": {
+      "path": "report.pdf"
+    },
+    "notes": "File read and text extraction prompt for PDF"
+  },
+  {
+    "input": "run pwd",
+    "expected_intent": "RUN_COMMAND",
+    "expected_skill": "RUN_COMMAND",
+    "expected_args_subset": {
+      "command": "pwd"
+    },
+    "notes": "Explicit shell execution command"
+  },
+  {
+    "input": "show os version",
+    "expected_intent": "SYSTEM_INFO",
+    "expected_skill": "OS_INFO",
+    "notes": "Operating system and kernel version status query"
+  },
+  {
+    "input": "what is my battery level",
+    "expected_intent": "SYSTEM_INFO",
+    "expected_skill": "SYSTEM_STATUS",
+    "notes": "System status and battery health query"
+  },
+  {
+    "input": "remind me in 5 minutes to submit report",
+    "expected_intent": "SET_REMINDER",
+    "expected_skill": "SET_REMINDER",
+    "expected_args_subset": {
+      "delay_seconds": 300,
+      "message": "submit report"
+    },
+    "notes": "Background reminder scheduling prompt"
+  },
+  {
+    "input": "show memory stats",
+    "expected_intent": "MEMORY_STATS",
+    "expected_skill": "MEMORY",
+    "notes": "Persistent memory database statistics query"
+  },
+  {
+    "input": "export memory to json",
+    "expected_intent": "MEMORY_EXPORT",
+    "expected_skill": "MEMORY",
+    "notes": "Export memory database prompt"
+  },
+  {
+    "input": "search memory for project goals",
+    "expected_intent": "MEMORY_SEARCH",
+    "expected_skill": "MEMORY",
+    "notes": "Search memory vector database query"
+  },
+  {
+    "input": "search inside report.pdf for executive summary",
+    "expected_intent": "FILE_CONTENT_SEARCH",
+    "expected_skill": "FILE_CONTENT_SEARCH",
+    "expected_args_subset": {
+      "target_file": "report.pdf"
+    },
+    "notes": "File content search query inside targeted PDF"
+  },
+  {
+    "input": "open presentation.pdf",
+    "expected_intent": "OPEN_FILE",
+    "expected_skill": "OPEN_FILE",
+    "expected_args_subset": {
+      "path": "presentation.pdf"
+    },
+    "notes": "Open file with desktop application request"
+  },
+  {
+    "input": "set brightness to 80%",
+    "expected_intent": "BRIGHTNESS_CONTROL",
+    "expected_skill": "BRIGHTNESS_CONTROL",
+    "expected_args_subset": {
+      "action": "set",
+      "level": 80
+    },
+    "notes": "Hardware display brightness control"
+  },
+  {
+    "input": "turn up volume",
+    "expected_intent": "VOLUME_CONTROL",
+    "expected_skill": "VOLUME_CONTROL",
+    "expected_args_subset": {
+      "action": "set"
+    },
+    "notes": "Audio volume control"
+  },
+  {
+    "input": "list available wifi networks",
+    "expected_intent": "WIFI_CONTROL",
+    "expected_skill": "WIFI_CONTROL",
+    "expected_args_subset": {
+      "action": "list"
+    },
+    "notes": "Wi-Fi network scan request"
+  },
+  {
+    "input": "shutdown computer in 10 minutes",
+    "expected_intent": "POWER_CONTROL",
+    "expected_skill": "POWER_CONTROL",
+    "expected_args_subset": {
+      "action": "shutdown"
+    },
+    "notes": "Power control shutdown request"
+  },
+  {
+    "input": "What is the capital of France?",
+    "expected_intent": "GENERAL",
+    "expected_skill": "GENERAL",
+    "notes": "Conversational prompt intentionally expecting GENERAL intent"
+  }
+]

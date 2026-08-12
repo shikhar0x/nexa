@@ -152,7 +152,7 @@ class IntentRouter(BaseIntentClassifier):
             else:
                 action = "get"
                 level = None
-            args = {"action": action}
+            args: dict[str, Any] = {"action": action}
             if level is not None:
                 args["level"] = level
             res = IntentResult(intent_name="BRIGHTNESS_CONTROL", args=args)
@@ -179,7 +179,7 @@ class IntentRouter(BaseIntentClassifier):
             else:
                 action = "get"
                 level = None
-            args = {"action": action}
+            args: dict[str, Any] = {"action": action}
             if level is not None:
                 args["level"] = level
             res = IntentResult(intent_name="VOLUME_CONTROL", args=args)
@@ -211,8 +211,9 @@ class IntentRouter(BaseIntentClassifier):
         known_folders = ("downloads", "desktop", "documents", "pictures", "music", "videos", "templates", "public")
         is_dir_query = (
             _match_any(DIRECTORY_LISTING_KEYWORDS, text)
-            or any(f"in {f}" in text or f"inside {f}" in text or f"show {f}" in text or f"open {f}" in text for f in known_folders)
+            or any(f"in {f}" in text or f"inside {f}" in text or f"show {f}" in text or f"open {f}" in text or f"search {f}" in text for f in known_folders)
             or bool(re.search(r"\b(list|show|view|display|count|how many)\b.*\b(in|inside|folder|directory)\b", text))
+            or text in ("search this folder", "search that folder", "search folder", "list this folder", "list that folder")
         )
         if is_dir_query:
             path = self._extract_directory_path(user_input)
@@ -228,15 +229,18 @@ class IntentRouter(BaseIntentClassifier):
 
         # ── 8. File Operations (Read, Content Search, Open, Search) ─
 
-        has_file_path = bool(re.search(r"(\b~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.(?:pdf|txt|md|py|js|ts|json|csv|html|css|cpp|c|java))\b", text))
+        has_file_path = bool(re.search(r"(\b~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.(?:pdf|docx|doc|txt|md|py|js|ts|json|csv|html|css|cpp|c|java))\b", text))
         for kw in FILE_READ_KEYWORDS:
             if _match_kw(kw, text):
-                extracted_path = self._extract_path(user_input, kw)
+                extracted_path, search_path_hint = self._extract_file_read_args(user_input, kw)
                 if kw in AMBIGUOUS_FILE_READ_KEYWORDS and not has_file_path and extracted_path not in ("active_file",):
                     continue
+                args = {"path": extracted_path}
+                if search_path_hint:
+                    args["search_path"] = search_path_hint
                 res = IntentResult(
                     intent_name="FILE_READ",
-                    args={"path": extracted_path},
+                    args=args,
                 )
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
@@ -411,6 +415,31 @@ class IntentRouter(BaseIntentClassifier):
         if candidate.startswith("home/"):
             candidate = "/" + candidate
         return candidate or "workspace"
+
+    def _extract_file_read_args(self, text: str, trigger_keyword: str) -> tuple[str, str | None]:
+        """Extract target file path and optional search path hint (e.g. 'from Downloads' or 'in Documents')."""
+        search_hint = None
+        raw_hint = None
+        from_match = re.search(
+            r"\b(?:from|in|inside|inside of)\s+(['\"]?(?:downloads|desktop|documents|pictures|music|videos|templates|public|home|~?/[^\s,'\"]+)['\"]?)",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if from_match:
+            raw_hint = from_match.group(1).strip().strip("'\"")
+            from skills.path_resolver import expand_special_folder
+            special = expand_special_folder(raw_hint)
+            if special:
+                search_hint = special.name
+            else:
+                search_hint = raw_hint
+
+        path = self._extract_path(text, trigger_keyword)
+        if raw_hint and path:
+            # Strip 'from <search_hint>' from path if present
+            path = re.sub(rf"\b(?:from|in|inside|inside of)\s+{re.escape(raw_hint)}\b", "", path, flags=re.IGNORECASE).strip()
+
+        return path, search_hint
 
     def _extract_path(self, text: str, trigger_keyword: str) -> str:
         # Match path starting with /, ~/, home/, or standard filenames, stripping quotes

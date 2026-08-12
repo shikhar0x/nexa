@@ -13,6 +13,7 @@ class Settings:
     log_file: str = os.path.join("logs", "nexa.log")
     log_level: str = "INFO"
     pending_action_timeout: float = 120.0
+    working_directory_timeout: float = 300.0
     debug: bool = os.getenv("NEXA_DEBUG", "0").lower() in ("1", "true", "yes")
 
 

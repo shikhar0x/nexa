@@ -1,7 +1,7 @@
 import re
 from typing import Any, Optional
 from pathlib import Path
-from skills.path_resolver import resolve_path, SPECIAL_FOLDERS
+from skills.path_resolver import resolve_path, expand_special_folder, validate_exists, SPECIAL_FOLDERS
 from config.logger import logger
 
 
@@ -40,6 +40,26 @@ class ClarificationResolver:
         target_path_arg = next((arg for arg in missing_args if arg in path_args), None)
 
         if target_path_arg:
+            # First check if pending action contains multiple choice list
+            pending_action = getattr(context, "pending_action", None)
+            choices = pending_action.args.get("choices") if pending_action and hasattr(pending_action, "args") else None
+
+            if choices and isinstance(choices, list):
+                # 1. Number selection (e.g. "1", "option 1", "#1", "2")
+                num_match = re.search(r"^\s*(?:option|#)?\s*(\d+)\s*$", clean_text, re.IGNORECASE)
+                if num_match:
+                    idx = int(num_match.group(1)) - 1
+                    if 0 <= idx < len(choices):
+                        selected = choices[idx]
+                        logger.debug(f"ClarificationResolver resolved choice number {idx + 1} -> '{selected}'")
+                        return {target_path_arg: selected}
+
+                # 2. Path string selection (exact or substring match in choices list)
+                for choice in choices:
+                    if clean_text.lower() == choice.lower() or clean_text.lower() == Path(choice).name.lower():
+                        logger.debug(f"ClarificationResolver resolved choice path match -> '{choice}'")
+                        return {target_path_arg: choice}
+
             resolved_path = self._resolve_directory_input(clean_text, clean_lower, context)
             if resolved_path is not None:
                 logger.debug(f"ClarificationResolver resolved '{user_input}' -> {target_path_arg}='{resolved_path}'")
@@ -77,10 +97,10 @@ class ClarificationResolver:
                 return Path(active_dir)
             return Path.home()
 
-        # Check SPECIAL_FOLDERS lookup (e.g. "downloads", "desktop", "documents")
-        folder_key = clean_lower.replace(" folder", "").replace(" directory", "").strip()
-        if folder_key in SPECIAL_FOLDERS:
-            return SPECIAL_FOLDERS[folder_key]
+        # Check expand_special_folder lookup (e.g. "downloads", "desktop folder", "documents directory")
+        special_match = expand_special_folder(clean_lower)
+        if special_match:
+            return special_match
 
         # Check explicit path syntax (/path, ~/path, ./path) or resolve_path
         if (
@@ -89,7 +109,7 @@ class ClarificationResolver:
         ):
             try:
                 candidate = resolve_path(clean_text)
-                if candidate.exists():
+                if validate_exists(candidate):
                     return candidate
             except Exception:
                 pass

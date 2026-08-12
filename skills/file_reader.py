@@ -1,8 +1,9 @@
 import os
+import time
 from typing import Any
 
-from skills.base import BaseSkill, SkillResult, Capability
-from skills.path_resolver import resolve_path
+from skills.base import BaseSkill, SkillResult, Capability, PendingAction
+from skills.path_resolver import resolve_path, resolve_filename_or_path
 from config.logger import logger
 
 
@@ -56,16 +57,48 @@ class FileReaderSkill(BaseSkill):
                 use_llm=False,  # Factual error bypasses LLM
             )
 
-        resolved = resolve_path(path)
-        path = str(resolved)
+        search_path = args.get("search_path")
+        search_dirs = [resolve_path(search_path)] if search_path else None
+        status, res_data = resolve_filename_or_path(path, context=context, search_dirs=search_dirs)
 
-        if not os.path.exists(path):
+        if status == "NOT_FOUND":
+            from skills.path_resolver import fuzzy_suggest_directory
+            suggestions = fuzzy_suggest_directory(path, context=context)
+            if suggestions:
+                sug_str = "', '".join(suggestions)
+                message = f"Could not read file '{path}': Path does not exist. Did you mean '{sug_str}'?"
+            else:
+                message = f"Could not read file '{path}': File does not exist."
+
             return SkillResult(
                 success=False,
-                message=f"Could not read file '{path}': File does not exist.",
-                data={"path": path, "error": "not_found"},
+                message=message,
+                data={"error": "not_found", "attempted_path": path, "suggestions": suggestions},
                 use_llm=False,  # Factual error bypasses LLM
             )
+        elif status == "MULTIPLE":
+            choices: list[str] = res_data
+            lines = [f"I found multiple files named '{path}':\n"]
+            for idx, item in enumerate(choices, 1):
+                lines.append(f"  {idx}. {item}")
+            lines.append("\nWhich one would you like to read?")
+
+            return SkillResult(
+                success=False,
+                message="\n".join(lines),
+                data={"choices": choices, "path": path},
+                use_llm=False,
+                pending_action=PendingAction(
+                    skill_name=self.name,
+                    args={**args, "choices": choices},
+                    missing_args=["path"],
+                    prompt=f"Which file would you like to read?",
+                    timestamp=time.time(),
+                ),
+            )
+
+        resolved = res_data
+        path = str(resolved)
 
         if os.path.isdir(path):
             return SkillResult(
@@ -108,8 +141,10 @@ class FileReaderSkill(BaseSkill):
                 use_llm=False,  # Factual error bypasses LLM
             )
 
-        # Update active_file in workspace_state
+        # Update active_file and active working directory context
+        from skills.path_resolver import set_active_directory
         context.workspace_state["active_file"] = path
+        set_active_directory(context, os.path.dirname(path))
 
         # Safely truncate text for LLM prompt context
         original_length = len(extracted_text)

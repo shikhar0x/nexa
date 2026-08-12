@@ -16,6 +16,9 @@ test_nexa.db
 *.db
 chroma_data/
 test_chroma_data/
+nexa_memory_export.md
+PHASE2_RELIABILITY_AUDIT.md
+Nexa_Phase2_Remaining_Stabilization_Tasks.md
 
 
 # Application Logs

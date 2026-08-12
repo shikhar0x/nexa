@@ -18,7 +18,7 @@ Nexa is a privacy-focused, local-first AI desktop companion featuring persistent
 - 🛡️ **Safety Gate**: All OS-modifying actions (opening applications, running shell commands, clearing memory) pass through explicit user confirmation (`confirm_action`).
 - 🛑 **Deterministic Error Handling**: Factual error responses on system operation failures prevent the LLM from fabricating excuses.
 - 🖥️ **OS Abstraction Layer**: Clean OS-independent interface (`infrastructure/os/`) isolating operating system calls.
-- 📝 **Structured Logging & Testing**: Configurable settings (`config/settings.py`), structured logging (`logs/nexa.log`), and 29 automated unit tests (`tests/`).
+- 📝 **Structured Logging & Testing**: Configurable settings (`config/settings.py`), structured logging (`logs/nexa.log`), and 121 automated unit tests across 13 test files (`tests/`).
 
 ---
 
@@ -39,6 +39,7 @@ nexa/
 │   └── renderer.py             # ConsoleRenderer for live token streaming
 ├── skills/
 │   ├── base.py                 # BaseSkill & standardized SkillResult DTO (use_llm flag)
+│   ├── path_resolver.py        # Shared unified path resolver & working directory context
 │   ├── registry.py             # SkillRegistry with alias support
 │   ├── system_status.py        # SystemStatusSkill
 │   ├── file_reader.py          # FileReaderSkill (PDF, text, markdown, source code)
@@ -64,7 +65,7 @@ nexa/
 │       ├── linux.py            # LinuxOSAdapter (xdg-open, notify-send)
 │       └── factory.py          # OS adapter factory
 ├── logs/                       # Application logs (nexa.log)
-└── tests/                      # Automated unit test suite (29 tests)
+└── tests/                      # Automated unit test suite (121 tests, 13 test modules)
 ```
 
 ---
@@ -72,9 +73,9 @@ nexa/
 ## Prerequisites
 
 - **Python 3.11+**
-- **Ollama** running locally with `llama3.2:1b` model pulled:
+- **Ollama** running locally with `llama3.2:3b` model pulled:
   ```bash
-  ollama pull llama3.2:1b
+  ollama pull llama3.2:3b
   ```
 - **ripgrep** (optional, for fast file content searching):
   ```bash
@@ -98,7 +99,7 @@ nexa/
 
 3. **Install dependencies:**
    ```bash
-   pip install ollama chromadb psutil PyPDF2
+   pip install -r requirements.txt
    ```
 
 ---
@@ -116,23 +117,23 @@ python main.py
 #### 1. System Monitoring
 - `"how's my battery?"`
 - `"what's my CPU usage like?"`
-- `"how is my system doing?"`
+- `"show os version"`
 
 #### 2. Document Reading & Summarization
-- `"read '/home/user/Downloads/DBMS_3_shikhar.pdf'"`
-- `"summarize '/home/user/Downloads/DBMS_3_shikhar.pdf'"`
+- `"read report.pdf"`
+- `"summarize report.pdf"`
 - `"explain this document"`
-- `"search for attribute inside this file"`
+- `"search inside report.pdf for executive summary"`
 
 #### 3. Deterministic Memory Operations
-- `"what do you remember"`
+- `"show memory stats"`
 - `"export memory"`
 - `"forget color"`
 - `"clear memory"`
 - `"summarize what you know about Python"`
 
 #### 4. File & Content Search
-- `"find my latest DBMS presentation"`
+- `"find DBMS files"`
 - `"where is my report"`
 - `"search inside files for TODO"`
 
@@ -141,17 +142,17 @@ python main.py
 - `"remind me in 5 minutes to check the build"`
 
 #### 6. Safe Action Execution (Requests Confirmation)
-- `"open /home/user/Desktop/nexa/main.py"`
+- `"open presentation.pdf"`
 - `"run command ls -la"`
 
 ---
 
 ## Running Unit Tests
 
-Run all 29 automated unit tests:
+Run all 121 automated unit tests across 13 test modules:
 
 ```bash
-python3 -m unittest discover -s tests
+python -m unittest discover -s tests -v
 ```
 
 ---
@@ -159,7 +160,7 @@ python3 -m unittest discover -s tests
 ## Roadmap
 
 - [x] **Phase 1 — Foundation**: SQLite conversation log + ChromaDB vector memory persistence + CQRS MemorySkill.
-- [x] **Phase 2 — Desktop Integration**: System monitoring, file/PDF reader & search, native token streaming, notifications, safe action execution, workspace state context.
+- [x] **Phase 2 — Desktop Integration & Runtime Stabilization**: System monitoring, file/PDF reader & search, native token streaming, notifications, safe action execution, workspace state working context, deterministic failure recovery, prompt regression suite.
 - [ ] **Phase 3 — Developer Mode**: Git integration, repo indexing, watchdog file watching, build log analysis.
 - [ ] **Phase 4 — Vision**: OCR, active window context, live screen understanding.
 - [ ] **Phase 5 — Voice Interface**: STT (Whisper), TTS (Piper), wake-word detection.

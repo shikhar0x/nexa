@@ -4,51 +4,15 @@ from dataclasses import asdict
 from typing import Any
 from skills.base import BaseSkill, SkillResult, Capability, PendingAction
 from skills.schemas import FileSearchResultData
-from infrastructure.search.oswalk import OsWalkSearchBackend, format_search_results
-
-from skills.path_resolver import resolve_path
+from config.settings import settings
+from config.logger import logger
+from skills.path_resolver import resolve_path, validate_exists
+from infrastructure.search.oswalk import OsWalkSearchBackend, format_search_results, normalize_file_query
 
 try:
     from PyPDF2 import PdfReader
 except ImportError:
     PdfReader = None
-
-
-import re
-from config.settings import settings
-from config.logger import logger
-
-FILLER_WORDS = {
-    "find", "search", "file", "files", "related", "about", "containing",
-    "named", "called", "for", "to", "my", "the", "a", "an", "latest",
-    "document", "documents", "folder", "folders", "look", "locate",
-    "is", "where", "are", "me", "can", "you", "in", "inside", "of",
-    "show", "get", "display", "all", "any", "some", "with",
-}
-
-
-def normalize_file_query(query: str) -> str:
-    """
-    Normalizes a file search query by stripping punctuation, converting to lowercase,
-    normalizing whitespace, and removing natural language filler words.
-    """
-    if not query:
-        return ""
-
-    text = query.lower().strip()
-
-    # Strip punctuation except hyphens/underscores/dots inside extensions
-    text = re.sub(r"[^\w\s\.-]", " ", text)
-    text = re.sub(r"\.+$", "", text)
-    text = re.sub(r"\.+(?=\s)", " ", text)
-
-    words = text.split()
-    filtered = [w.strip(".,;:!?") for w in words if w.strip(".,;:!?") not in FILLER_WORDS]
-
-    if not filtered:
-        filtered = [w.strip(".,;:!?") for w in words if w.strip(".,;:!?")]
-
-    return " ".join(filtered).strip()
 
 
 class FileSearchSkill(BaseSkill):
@@ -71,6 +35,24 @@ class FileSearchSkill(BaseSkill):
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
         raw_query = args.get("query", "")
         search_path = args.get("search_path") or args.get("root")
+
+        if search_path in ("this_folder", "that_folder"):
+            active_dir = getattr(context, "workspace_state", {}).get("active_directory") if context else None
+            if active_dir:
+                search_path = active_dir
+            else:
+                return SkillResult(
+                    success=False,
+                    message="Which directory should I search?",
+                    use_llm=False,
+                    pending_action=PendingAction(
+                        skill_name=self.name,
+                        args=dict(args),
+                        missing_args=["search_path"],
+                        prompt="Which directory should I search?",
+                        timestamp=time.time(),
+                    ),
+                )
 
         if not raw_query:
             return SkillResult(success=False, message="No search query provided.", use_llm=False)
@@ -120,7 +102,10 @@ class FileSearchSkill(BaseSkill):
             )
 
         if all_results:
-            context.workspace_state["active_file"] = all_results[0]
+            first_match = resolve_path(all_results[0])
+            from skills.path_resolver import set_active_directory
+            context.workspace_state["active_file"] = str(first_match)
+            set_active_directory(context, first_match.parent if first_match.is_file() else first_match)
 
         message = format_search_results(all_results, raw_query)
         schema_data = asdict(
@@ -168,11 +153,11 @@ class FileContentSearchSkill(BaseSkill):
             target_file = str(resolve_path(target_file))
         else:
             active_file = context.workspace_state.get("active_file")
-            if active_file and os.path.exists(active_file):
+            if active_file and validate_exists(active_file):
                 target_file = active_file
 
         # Targeted single-file content search
-        if target_file and os.path.exists(target_file) and not os.path.isdir(target_file):
+        if target_file and validate_exists(target_file) and not os.path.isdir(target_file):
             return self._search_inside_single_file(query, target_file, context)
 
         if not query:

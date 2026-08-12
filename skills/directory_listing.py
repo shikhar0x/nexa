@@ -25,6 +25,24 @@ class DirectoryListingSkill(BaseSkill):
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
         target_path = args.get("path", "").strip().strip("'\"")
 
+        if target_path in ("this_folder", "that_folder"):
+            active_dir = getattr(context, "workspace_state", {}).get("active_directory") if context else None
+            if active_dir:
+                target_path = active_dir
+            else:
+                return SkillResult(
+                    success=False,
+                    message="Which folder would you like to list?",
+                    use_llm=False,
+                    pending_action=PendingAction(
+                        skill_name=self.name,
+                        args=dict(args),
+                        missing_args=["path"],
+                        prompt="Which folder would you like to list?",
+                        timestamp=time.time(),
+                    ),
+                )
+
         if not target_path or (args.get("ask_folder") and not target_path):
             return SkillResult(
                 success=False,
@@ -42,17 +60,26 @@ class DirectoryListingSkill(BaseSkill):
         try:
             listing_data = self.service.list_directory(target_path)
         except Exception as e:
+            from skills.path_resolver import fuzzy_suggest_directory
+            suggestions = fuzzy_suggest_directory(target_path, context=context)
+            if suggestions:
+                sug_str = "', '".join(suggestions)
+                message = f"Could not list directory '{target_path}': Path does not exist. Did you mean '{sug_str}'?"
+            else:
+                message = f"Could not list directory contents: {e}"
+
             return SkillResult(
                 success=False,
-                message=f"Could not list directory contents: {e}",
-                data={"error": str(e), "target_path": target_path},
+                message=message,
+                data={"error": "not_found", "attempted_path": target_path, "suggestions": suggestions},
                 use_llm=False,
             )
 
         data_dict = asdict(listing_data)
 
-        # Update active_file in workspace_state if target directory is valid
-        context.workspace_state["active_directory"] = listing_data.target_path
+        # Update active working directory context
+        from skills.path_resolver import set_active_directory
+        set_active_directory(context, listing_data.target_path)
 
         dir_sample = [f"  - 📁 {d.name}/" for d in listing_data.directories[:10]]
         file_sample = [f"  - 📄 {f.name} ({round(f.size_bytes / 1024, 1)} KB)" for f in listing_data.files[:15]]

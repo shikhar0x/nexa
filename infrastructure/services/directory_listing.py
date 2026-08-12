@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from skills.schemas import DirectoryListingData, DirectoryItem
-from skills.path_resolver import resolve_path
+from skills.path_resolver import resolve_path, validate_exists, normalize_directory
 
 
 class DirectoryListingService:
@@ -13,11 +13,13 @@ class DirectoryListingService:
         else:
             path_obj = resolve_path(target_path)
 
-        if not path_obj.exists():
+        if not validate_exists(path_obj):
             raise FileNotFoundError(f"Path '{path_obj}' does not exist.")
 
         if not path_obj.is_dir():
             raise NotADirectoryError(f"Path '{path_obj}' is a file, not a directory.")
+
+        path_obj = normalize_directory(path_obj)
 
         files = []
         directories = []
