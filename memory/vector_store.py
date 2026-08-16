@@ -1,6 +1,7 @@
 import chromadb
 from config.settings import settings
 from config.logger import logger
+from memory.db import get_unembedded_messages, mark_embedded
 
 _client = None
 _collection = None
@@ -34,6 +35,46 @@ def add_memory(text: str, msg_id: int):
         documents=[text],
         ids=[str(msg_id)]
     )
+
+
+def sync_memory() -> int:
+    """
+    Lazy vector sync: embed only messages that have not been embedded yet.
+    Returns the number of new embeddings created. Runs a single batch add
+    so the cost is one-time (after an upgrade or on the first memory query),
+    not per conversation turn.
+    """
+    pending = get_unembedded_messages()
+    if not pending:
+        return 0
+
+    col = get_collection()
+    try:
+        # Upgrade-safe: ids embedded before this change may already exist in
+        # ChromaDB while the memory_embeddings table is empty.
+        existing = set(col.get(include=[])["ids"])
+    except Exception as exc:
+        logger.warning(f"Could not read existing ChromaDB ids: {exc}")
+        existing = set()
+
+    to_add = [(mid, content) for mid, content in pending if str(mid) not in existing]
+    if to_add:
+        try:
+            col.add(
+                documents=[content for _, content in to_add],
+                ids=[str(mid) for mid, _ in to_add],
+            )
+        except Exception as exc:
+            # Degrade gracefully: memory queries still work, embeddings just
+            # aren't updated this round (they will be retried on next sync).
+            logger.warning(f"ChromaDB sync failed, embeddings skipped: {exc}")
+            return 0
+
+    # Mark ALL pending as embedded (pre-existing ones were embedded before)
+    mark_embedded([mid for mid, _ in pending])
+    if to_add:
+        logger.debug(f"Lazy ChromaDB sync embedded {len(to_add)} new messages")
+    return len(to_add)
 
 
 def search_memory(query: str, top_k: int = 3) -> list[str]:

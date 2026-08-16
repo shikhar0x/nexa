@@ -238,7 +238,7 @@ class Dispatcher:
                 return rendered
 
         # 6. LLM Response Generation
-        context.recent_history = self.memory.get_recent_conversation(limit=6)
+        context.recent_history = self.memory.get_recent_conversation(limit=settings.history_limit)
         chunk_generator = self.llm.stream(context)
         response = self.renderer.render_stream(chunk_generator)
 

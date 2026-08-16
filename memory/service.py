@@ -1,8 +1,8 @@
 import sqlite3
 import os
 
-from memory.db import init_db, save_message
-from memory.vector_store import add_memory, search_memory, get_collection
+from memory.db import init_db, save_message, remove_embedded, clear_embedded
+from memory.vector_store import search_memory, get_collection, sync_memory
 from memory.retrieval import get_context as retrieve_vector_context
 from memory.facts import init_facts_table, set_fact, get_fact, try_extract_name
 from config.settings import settings
@@ -37,6 +37,7 @@ class MemoryService:
 
     def get_memory_stats(self) -> dict:
         """Return factual statistics from SQLite and ChromaDB databases."""
+        sync_memory()  # ensure vector count reflects all stored messages
         conn = sqlite3.connect(settings.db_path)
         cur = conn.cursor()
 
@@ -96,6 +97,7 @@ class MemoryService:
 
     def search_memories(self, query: str, top_k: int = 5) -> list[str]:
         """Perform vector search on ChromaDB for memories matching query."""
+        sync_memory()  # lazy catch-up: embed everything first, then search
         return search_memory(query, top_k=top_k)
 
     def export_conversations(self, output_path: str = "nexa_memory_export.md") -> str:
@@ -125,19 +127,20 @@ class MemoryService:
     # ── Write Commands (CQRS) ─────────────────────────────────────────
 
     def store_exchange(self, user_input: str, response: str) -> None:
-        """Persist a conversation turn (user prompt + assistant response)."""
+        """
+        Persist a conversation turn (user prompt + assistant response).
+
+        SQLite only, synchronously — it is fast and has no embedding cost.
+        ChromaDB embedding is fully LAZY: it happens in one batch only when
+        memory is actually queried (search/stats), never on the hot path.
+        """
         name = try_extract_name(user_input)
         if name:
             set_fact("user_name", name)
 
-        logger.debug(f"Storing turn in SQLite & ChromaDB: '{user_input[:30]}...'")
+        logger.debug(f"Storing turn in SQLite (ChromaDB sync is lazy): '{user_input[:30]}...'")
         save_message("user", user_input)
-        user_id = self._get_last_insert_id()
-        add_memory(user_input, user_id)
-
         save_message("assistant", response)
-        assist_id = self._get_last_insert_id()
-        add_memory(response, assist_id)
 
     def delete_matching_memories(self, query: str) -> int:
         """Delete messages containing query term from SQLite log and ChromaDB collection."""
@@ -154,6 +157,10 @@ class MemoryService:
         if matching_ids:
             cur.execute("DELETE FROM messages WHERE content LIKE ?", (f"%{query}%",))
             conn.commit()
+            conn.close()
+
+            # Keep the embedding tracker consistent
+            remove_embedded([int(i) for i in matching_ids])
 
             # Delete matching IDs from ChromaDB
             col = get_collection()
@@ -161,6 +168,7 @@ class MemoryService:
                 col.delete(ids=matching_ids)
             except Exception as e:
                 logger.warning(f"Failed to delete ChromaDB IDs {matching_ids}: {e}")
+            return len(matching_ids)
 
         conn.close()
         logger.info(f"Deleted {len(matching_ids)} memories matching query '{query}'")
@@ -173,6 +181,7 @@ class MemoryService:
         conn.execute("DELETE FROM messages")
         conn.commit()
         conn.close()
+        clear_embedded()
 
         col = get_collection()
         try:
@@ -184,10 +193,3 @@ class MemoryService:
             logger.warning(f"Error clearing ChromaDB collection: {e}")
 
         return True
-
-    def _get_last_insert_id(self) -> int:
-        conn = sqlite3.connect(settings.db_path)
-        cur = conn.execute("SELECT last_insert_rowid()")
-        result = cur.fetchone()[0]
-        conn.close()
-        return result
