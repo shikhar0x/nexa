@@ -1,6 +1,6 @@
 from dataclasses import asdict
 from typing import Any
-from skills.base import BaseSkill, SkillResult, Capability
+from skills.base import BaseSkill, SkillResult, Capability, deterministic_report_flags
 from infrastructure.services.os_info import OSInfoService
 
 
@@ -34,10 +34,11 @@ class OSInfoSkill(BaseSkill):
             f"• Uptime: {info_data.uptime_formatted} (booted {info_data.boot_timestamp})"
         )
 
+        use_llm, allow_interpretation = deterministic_report_flags()
         return SkillResult(
             success=True,
             data=data_dict,
             message=message,
-            use_llm=True,
-            allow_interpretation=True,
+            use_llm=use_llm,
+            allow_interpretation=allow_interpretation,
         )

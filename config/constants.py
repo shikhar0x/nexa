@@ -2,6 +2,9 @@
 Global system constants, keyword sets, and prompt templates.
 """
 
+from config.capabilities import CAPABILITY_INDEX
+
+
 SYSTEM_INFO_KEYWORDS = {
     "battery", "cpu", "ram", "memory status", "disk", "storage",
     "system status", "temperature", "performance", "how's my",
@@ -29,6 +32,17 @@ SYSTEM_INFO_KEYWORDS = {
     "how much ram do i have", "what are my specs", "tell me my specs",
     "my system", "system model", "what computer do i have",
     "what processor do i have", "laptop model",
+    "pc health", "computer health", "health of my pc", "health of my computer",
+    "health of my laptop", "pc status", "computer status", "pc checkup",
+    "checkup", "how is my pc doing", "how's my pc doing", "hows my pc doing",
+    "how is my computer doing", "how's my computer doing",
+    "how is my laptop doing", "how's my laptop doing",
+    "is my pc ok", "is my computer ok", "is my laptop ok",
+    "how is my pc", "how's my pc", "hows my pc", "how is my computer",
+    "how's my computer", "how is my laptop", "how's my laptop",
+    "is everything ok with my pc", "is everything ok with my computer",
+    "give my pc a checkup", "give my computer a checkup",
+    "run a health check", "health check", "system checkup",
 }
 
 PROCESS_KEYWORDS = {
@@ -160,7 +174,12 @@ POWER_KEYWORDS = {
     "shut the laptop down", "shut the computer down", "power down",
     "power it down", "turn the pc off", "turn the computer off",
     "turn the laptop off", "switch the pc off", "switch the computer off",
-    "switch the laptop off",
+    "switch the laptop off", "suspend", "suspend the pc", "suspend the laptop",
+    "suspend the computer", "suspend my pc", "suspend my laptop",
+    "put the pc to sleep", "put the laptop to sleep", "put my pc to sleep",
+    "put the computer to sleep", "put it to sleep", "go to sleep",
+    "put to sleep", "sleep the pc", "sleep my pc", "sleep the laptop",
+    "turn off the pc", "turn off the computer", "turn off the laptop",
 }
 
 # ── Memory Subsystem Keywords ────────────────────────────────
@@ -194,6 +213,14 @@ MEMORY_CLEAR_KEYWORDS = {
     "clear memory", "reset memory", "delete all memories", "delete everything you know",
     "wipe memory", "clear all memories", "erase memory", "erase all memory",
     "erase all memories", "erase all the memory", "forget everything",
+    "clear your memory", "clear all your memory", "clear all of your memory",
+    "erase your memory", "erase all your memory", "erase all of your memory",
+    "erase all your memories", "erase all of your memories", "erase everything you know",
+    "wipe your memory", "wipe all your memory", "wipe all of your memory",
+    "wipe everything you know", "reset your memory", "delete all your memories",
+    "delete all your memory", "delete everything you know",
+    "forget everything you know", "forget all your memories", "forget all memories",
+    "forget your memory", "remove everything you know", "empty your memory",
 }
 
 
@@ -235,41 +262,33 @@ GROUNDED_INTERPRETATION_PROMPT = (
 #
 # When the deterministic keyword router falls back to GENERAL, the local LLM
 # (the SAME single model used for chat) is asked to pick one of these
-# capabilities. This dict is BOTH the prompt content and the whitelist:
-# anything not listed here can never be suggested by the model.
-# Safety-critical intents (POWER_CONTROL, RUN_COMMAND, MEMORY_CLEAR,
-# MEMORY_DELETE, MEMORY_EXPORT, WIFI_CONTROL) are intentionally absent —
-# they are keyword-router-only and can never be triggered by the LLM.
+# capabilities. The capability index (config/capabilities.py) is BOTH the
+# prompt content and the whitelist: anything not listed there can never be
+# suggested by the model. Safety-critical intents (POWER_CONTROL, RUN_COMMAND,
+# MEMORY_CLEAR, MEMORY_DELETE, MEMORY_EXPORT, WIFI_CONTROL) are intentionally
+# absent from the index — they are keyword-router-only.
 
 LLM_CLASSIFIABLE_INTENTS: dict[str, str] = {
-    "SYSTEM_INFO": "system health, hardware specs, OS, battery, CPU, RAM, disk, IP or network questions",
-    "PROCESS_INFO": "running processes, what is using CPU/RAM, why the computer is slow or hot",
-    "DIRECTORY_LISTING": "list or show files/folders in a directory",
-    "FILE_SEARCH": "find or search for files by name or topic",
-    "FILE_CONTENT_SEARCH": "search inside files for a word or phrase",
-    "FILE_READ": "read, summarize, or explain a specific file or document",
-    "OPEN_FILE": "open or launch a file or application",
-    "SET_REMINDER": "set a reminder, timer, alarm, or notification",
-    "BRIGHTNESS_CONTROL": "screen brightness questions or adjustments",
-    "VOLUME_CONTROL": "sound volume, mute, or loudness questions",
-    "MEMORY_STATS": "what Nexa remembers or its memory statistics",
-    "MEMORY_LIST": "recent logged conversations",
-    "MEMORY_SEARCH": "search Nexa's stored memories",
-    "MEMORY_SUMMARIZE": "summarize what Nexa knows",
-    "GENERAL": "everything else: casual chat, opinions, knowledge questions",
+    cap["name"]: cap["description"] for cap in CAPABILITY_INDEX
 }
 
-INTENT_CLASSIFICATION_PROMPT = (
-    "You are the intent router of Nexa, a local desktop assistant. "
-    "Your ONLY job: choose which single capability matches the user's message.\n\n"
-    "Available capabilities:\n"
-    + "\n".join(f"- {name}: {desc}" for name, desc in LLM_CLASSIFIABLE_INTENTS.items())
-    + "\n\nExamples:\n"
-    "- 'what's eating my ram?' -> {\"intent\": \"PROCESS_INFO\"}\n"
-    "- 'any pdfs about sql in downloads?' -> {\"intent\": \"FILE_CONTENT_SEARCH\"}\n"
-    "- 'crank the screen brightness' -> {\"intent\": \"BRIGHTNESS_CONTROL\"}\n"
-    "- 'ping me in 10 minutes' -> {\"intent\": \"SET_REMINDER\"}\n"
-    "- 'how much ram do i have' -> {\"intent\": \"SYSTEM_INFO\"}\n"
-    "- 'tell me a joke' -> {\"intent\": \"GENERAL\"}\n\n"
-    "Reply with STRICT JSON only, no commentary: {\"intent\": \"<CAPABILITY_NAME>\"}"
-)
+
+def _build_intent_classification_prompt() -> str:
+    """Build the classification prompt from the capability index (with examples)."""
+    lines = [
+        "You are the intent router of Nexa, a local desktop assistant. "
+        "Your ONLY job: choose which single capability matches the user's message.\n\n"
+        "Available capabilities:\n"
+    ]
+    for cap in CAPABILITY_INDEX:
+        lines.append(f"- {cap['name']}: {cap['description']}")
+        examples = cap.get("examples") or []
+        if examples:
+            lines.append("    Examples: " + ", ".join(examples))
+    lines.append(
+        '\nReply with STRICT JSON only, no commentary: {"intent": "<CAPABILITY_NAME>"}'
+    )
+    return "\n".join(lines)
+
+
+INTENT_CLASSIFICATION_PROMPT = _build_intent_classification_prompt()

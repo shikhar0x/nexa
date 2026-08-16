@@ -67,6 +67,7 @@ class LLMEngine:
                 options={
                     "temperature": 0.0,
                     "num_ctx": settings.num_ctx,
+                    "num_predict": settings.classification_max_tokens,
                 },
             )
             content = response.get("message", {}).get("content", "").strip()

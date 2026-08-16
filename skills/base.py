@@ -1,6 +1,16 @@
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from config.settings import settings
+
+
+def deterministic_report_flags() -> tuple[bool, bool]:
+    """Return (use_llm, allow_interpretation) for factual info skills."""
+    if settings.deterministic_system_report:
+        return False, False
+    return True, True
+
+
 
 @dataclass
 class Capability:

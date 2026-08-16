@@ -1,6 +1,6 @@
 from dataclasses import asdict
 from typing import Any
-from skills.base import BaseSkill, SkillResult, Capability
+from skills.base import BaseSkill, SkillResult, Capability, deterministic_report_flags
 from infrastructure.services.system_status import SystemStatusService
 
 
@@ -41,10 +41,11 @@ class SystemStatusSkill(BaseSkill):
 
         message = "Real-time System Hardware & Status:\n" + "\n".join(lines)
 
+        use_llm, allow_interpretation = deterministic_report_flags()
         return SkillResult(
             success=True,
             data=data_dict,
             message=message,
-            use_llm=True,
-            allow_interpretation=True,
+            use_llm=use_llm,
+            allow_interpretation=allow_interpretation,
         )

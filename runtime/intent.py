@@ -71,7 +71,7 @@ class IntentRouter(BaseIntentClassifier):
             action = "shutdown"
             if any(_match_kw(w, text) for w in ("restart", "reboot")):
                 action = "restart"
-            elif any(_match_kw(w, text) for w in ("sleep", "hibernate")):
+            elif any(_match_kw(w, text) for w in ("sleep", "hibernate", "suspend")):
                 action = "sleep"
             res = IntentResult(
                 intent_name="POWER_CONTROL",

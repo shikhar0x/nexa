@@ -20,6 +20,8 @@ class Settings:
     memory_context_max_chars: int = 1200  # Cap on injected memory context (fewer = faster)
     memory_min_messages_for_search: int = 20  # Below this, vector search is skipped (no embeddings)
     memory_context_recent_turns: int = 2  # Recent turns injected as context when vector search is skipped
+    classification_max_tokens: int = 64  # Cap on the intent-classification reply (JSON is short)
+    deterministic_system_report: bool = True  # Print system/OS/network info as an instant pre-formatted report (no LLM)
     debug: bool = os.getenv("NEXA_DEBUG", "0").lower() in ("1", "true", "yes")
 
 
