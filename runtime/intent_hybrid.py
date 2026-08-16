@@ -1,3 +1,12 @@
+"""
+Hybrid intent classifier: deterministic keyword router first, supervised
+LLM fallback second.
+
+Architecture note: this is a drop-in implementation of the existing
+BaseIntentClassifier interface. The rest of the pipeline (Dispatcher,
+CapabilityResolver, skills, memory, safety gate) consumes only the
+IntentResult DTO and is completely unaware of this class.
+"""
 from typing import Optional
 
 from runtime.intent import BaseIntentClassifier, IntentResult, IntentRouter
@@ -25,6 +34,23 @@ SMALL_TALK_EXACT = {
     "ok bye", "okay bye", "alright thanks", "ok cool", "okay cool", "nice thanks",
     "thank you so much", "thanks again", "bye bye", "see you later",
 }
+
+# "What can you do?" style questions should stay GENERAL so the system
+# prompt's capability list answers them — never routed to a specific skill.
+CAPABILITY_QUESTIONS = (
+    "what can you do", "what can u do", "what are your skills",
+    "what are your abilities", "list your abilities", "list your skills",
+    "list down all of your abilities", "list down all your abilities",
+    "list your capabilities", "list your capabilities",
+    "what are you capable of", "what are you capable of doing",
+    "what do you do", "what all can you do", "what all can u do",
+    "what are all your features", "what features do you have",
+    "what are your features", "your skills", "your abilities",
+    "show me your skills", "tell me your skills",
+    "what can you help me with", "how can you help me",
+    "what are you", "who are you", "introduce yourself",
+    "tell me about yourself",
+)
 
 SMALL_TALK_PREFIXES = (
     "hey ", "hello ", "hi ", "yo ", "howdy", "good morning", "good afternoon",
@@ -56,7 +82,10 @@ class HybridIntentClassifier(BaseIntentClassifier):
     @staticmethod
     def _is_small_talk(user_input: str) -> bool:
         text = user_input.strip().lower().rstrip("!.?")
-        return text in SMALL_TALK_EXACT or text.startswith(SMALL_TALK_PREFIXES)
+        if text in SMALL_TALK_EXACT or text.startswith(SMALL_TALK_PREFIXES):
+            return True
+        # Capability questions ("what can you do?") also stay GENERAL
+        return any(q in text for q in CAPABILITY_QUESTIONS)
 
     def classify(self, user_input: str) -> IntentResult:
         # 1. Deterministic keyword router always runs first
@@ -76,7 +105,9 @@ class HybridIntentClassifier(BaseIntentClassifier):
             return result
 
         intent_name = suggestion.get("intent")
-        # Whitelist check: model can only suggest known, safe capabilities
+        # Whitelist check: model can only suggest capabilities from the
+        # index — and never destructive intents (belt and suspenders: the
+        # index already excludes them, this guards against future edits).
         if (
             intent_name not in LLM_CLASSIFIABLE_INTENTS
             or intent_name in DESTRUCTIVE_INTENTS

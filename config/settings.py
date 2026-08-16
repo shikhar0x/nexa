@@ -5,7 +5,7 @@ import os
 @dataclass
 class Settings:
     """Global configuration settings for Nexa."""
-    llm_model: str = "llama3.2:3b"
+    llm_model: str = "phi4-mini"
     db_path: str = "nexa.db"
     chroma_path: str = "chroma_data"
     search_max_seconds: float = 5.0
