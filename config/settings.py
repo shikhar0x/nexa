@@ -14,6 +14,8 @@ class Settings:
     log_level: str = "INFO"
     pending_action_timeout: float = 120.0
     working_directory_timeout: float = 300.0
+    temperature: float = 0.2  # Low randomness: keep answers grounded in real data
+    num_ctx: int = 4096  # Context window for the local model (tuned for CPU laptops)
     debug: bool = os.getenv("NEXA_DEBUG", "0").lower() in ("1", "true", "yes")
 
 

@@ -146,7 +146,13 @@ class IntentRouter(BaseIntentClassifier):
             if digits:
                 level = int(digits[0])
                 action = "set"
-            elif any(_match_kw(w, text) for w in ("set", "dim", "brighten", "change")):
+            elif any(_match_kw(w, text) for w in ("crank", "up", "brighter", "brighten", "increase", "raise", "max", "full")):
+                level = 60
+                action = "set"
+            elif any(_match_kw(w, text) for w in ("dim", "down", "dimmer", "decrease", "lower", "too bright", "reduce", "less bright", "not so bright")):
+                level = 40
+                action = "set"
+            elif any(_match_kw(w, text) for w in ("set", "change")):
                 level = 50
                 action = "set"
             else:
@@ -173,7 +179,13 @@ class IntentRouter(BaseIntentClassifier):
             if digits:
                 level = int(digits[0])
                 action = "set"
-            elif any(_match_kw(w, text) for w in ("set", "turn up", "turn down", "change")):
+            elif any(_match_kw(w, text) for w in ("up", "louder", "increase", "raise", "max", "full", "too quiet")):
+                level = 60
+                action = "set"
+            elif any(_match_kw(w, text) for w in ("down", "quieter", "decrease", "lower", "too loud", "reduce", "less loud", "not so loud")):
+                level = 40
+                action = "set"
+            elif any(_match_kw(w, text) for w in ("set", "change")):
                 level = 50
                 action = "set"
             else:
@@ -189,9 +201,9 @@ class IntentRouter(BaseIntentClassifier):
         if _match_any(WIFI_KEYWORDS, text):
             if any(_match_kw(w, text) for w in ("list", "available", "scan")):
                 action = "list"
-            elif any(_match_kw(w, text) for w in ("turn on", "enable", "wifi on")):
+            elif any(_match_kw(w, text) for w in ("turn on", "enable", "wifi on", "switch on")):
                 action = "on"
-            elif any(_match_kw(w, text) for w in ("turn off", "disable", "wifi off")):
+            elif any(_match_kw(w, text) for w in ("turn off", "disable", "wifi off", "kill", "switch off", "disconnect")):
                 action = "off"
             elif _match_kw("connect", text):
                 action = "connect"
@@ -202,7 +214,11 @@ class IntentRouter(BaseIntentClassifier):
             return res
 
         # ── 5. Process Info Query ─────────────────────────────────
-        if _match_any(PROCESS_KEYWORDS, text):
+        is_process_query = _match_any(PROCESS_KEYWORDS, text) or (
+            _match_any(("eating", "eats", "eat", "hogging", "hogs", "using", "consuming", "draining", "drains"), text)
+            and _match_any(("ram", "memory", "cpu"), text)
+        )
+        if is_process_query:
             res = IntentResult(intent_name="PROCESS_INFO")
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
@@ -214,6 +230,10 @@ class IntentRouter(BaseIntentClassifier):
             or any(f"in {f}" in text or f"inside {f}" in text or f"show {f}" in text or f"open {f}" in text or f"search {f}" in text for f in known_folders)
             or bool(re.search(r"\b(list|show|view|display|count|how many)\b.*\b(in|inside|folder|directory)\b", text))
             or text in ("search this folder", "search that folder", "search folder", "list this folder", "list that folder")
+        )
+        # "What's in THIS FILE" is a file-read query, not a directory listing
+        is_dir_query = is_dir_query and not bool(
+            re.search(r"\b(this|that|the|a|an) (file|document|pdf|report)\b", text)
         )
         if is_dir_query:
             path = self._extract_directory_path(user_input)
@@ -303,6 +323,82 @@ class IntentRouter(BaseIntentClassifier):
         logger.debug(f"Classified '{user_input}' -> {res}")
         return res
 
+    def extract_args(self, intent_name: str, user_input: str) -> dict[str, Any]:
+        """
+        Deterministic argument extraction for a given intent, using the same
+        extractors as classify(). Used by the hybrid classifier so that an
+        LLM-suggested intent still receives args extracted by the trusted
+        keyword/regex logic (never by the model).
+        """
+        text = user_input.lower().strip()
+
+        if intent_name == "DIRECTORY_LISTING":
+            return {"path": self._extract_directory_path(user_input)}
+
+        if intent_name == "FILE_READ":
+            extracted_path, search_path_hint = self._extract_file_read_args(user_input, "read")
+            args = {"path": extracted_path}
+            if search_path_hint:
+                args["search_path"] = search_path_hint
+            return args
+
+        if intent_name == "FILE_CONTENT_SEARCH":
+            query, target_file = self._extract_content_search_args(user_input, "search inside")
+            return {"query": query, "target_file": target_file}
+
+        if intent_name == "FILE_SEARCH":
+            return {"query": self._extract_file_query(text, "find")}
+
+        if intent_name == "SET_REMINDER":
+            delay, message = self._parse_reminder(text)
+            return {"delay_seconds": delay, "message": message}
+
+        if intent_name == "BRIGHTNESS_CONTROL":
+            digits = re.findall(r"\d+", text)
+            if digits:
+                return {"action": "set", "level": int(digits[0])}
+            if any(_match_kw(w, text) for w in ("crank", "up", "brighter", "brighten", "increase", "raise", "max", "full")):
+                return {"action": "set", "level": 60}
+            if any(_match_kw(w, text) for w in ("dim", "down", "dimmer", "decrease", "lower", "too bright", "reduce")):
+                return {"action": "set", "level": 40}
+            if any(_match_kw(w, text) for w in ("set", "change")):
+                return {"action": "set", "level": 50}
+            return {"action": "get"}
+
+        if intent_name == "VOLUME_CONTROL":
+            if _match_kw("unmute", text):
+                return {"action": "unmute"}
+            if _match_kw("mute", text):
+                return {"action": "mute"}
+            digits = re.findall(r"\d+", text)
+            if digits:
+                return {"action": "set", "level": int(digits[0])}
+            if any(_match_kw(w, text) for w in ("up", "louder", "increase", "raise", "max", "full", "too quiet")):
+                return {"action": "set", "level": 60}
+            if any(_match_kw(w, text) for w in ("down", "quieter", "decrease", "lower", "too loud", "reduce")):
+                return {"action": "set", "level": 40}
+            if any(_match_kw(w, text) for w in ("set", "change")):
+                return {"action": "set", "level": 50}
+            return {"action": "get"}
+
+        if intent_name == "MEMORY_SEARCH":
+            query = text
+            for k in MEMORY_SEARCH_KEYWORDS:
+                query = re.sub(rf"\b{re.escape(k)}\b", "", query, flags=re.IGNORECASE)
+            return {"query": query.strip()}
+
+        if intent_name == "MEMORY_SUMMARIZE":
+            query = text
+            for k in MEMORY_SUMMARIZE_KEYWORDS:
+                query = re.sub(rf"\b{re.escape(k)}\b", "", query, flags=re.IGNORECASE)
+            return {"query": query.strip()}
+
+        if intent_name == "OPEN_FILE":
+            return {"path": self._extract_directory_path(user_input)}
+
+        # SYSTEM_INFO / PROCESS_INFO / MEMORY_STATS / MEMORY_LIST take no args
+        return {}
+
     def _detect_run_command(self, text: str, user_input: str) -> IntentResult | None:
         """Detect explicit shell command execution requests or known CLI binary invocations."""
         # 1. Prefix triggers in RUN_KEYWORDS (e.g., "run intel_gpu_top", "execute git status")
@@ -312,6 +408,24 @@ class IntentRouter(BaseIntentClassifier):
                 if cmd.lower().startswith("command "):
                     cmd = cmd[len("command "):].strip()
                 if cmd:
+                    # Exclude ambiguous conversational prefixes ("do you ...", "do i ...",
+                    # "shell out ...") so natural language is not treated as a command.
+                    words_after = cmd.lower().split()
+                    if kw in ("do", "shell", "exec") and words_after and words_after[0] in (
+                        "you", "i", "we", "the", "a", "an", "this", "that",
+                        "it", "they", "my", "your", "our", "me",
+                    ):
+                        continue
+                    # "do X" only fires when X is an actual command, not a noun phrase
+                    if kw == "do" and words_after:
+                        first = words_after[0].rstrip(";:,")
+                        looks_like_command = (
+                            first in KNOWN_SHELL_COMMANDS
+                            or first.endswith((".py", ".sh", ".bin", ".pl"))
+                            or first.startswith(("-", "/", "./", "~/"))
+                        )
+                        if not looks_like_command:
+                            continue
                     return IntentResult(intent_name="RUN_COMMAND", args={"command": cmd})
 
         # 2. First word is a known CLI tool or executable script (e.g. "intel_gpu_top", "nvidia-smi", "python main.py")
@@ -348,8 +462,14 @@ class IntentRouter(BaseIntentClassifier):
             if len(words) > 1:
                 if any(w.startswith("-") for w in words[1:]):
                     is_shell_grep = True
-                elif any(w.startswith(("./", "/", "~/", "../")) or "." in w for w in words[2:]):
-                    is_shell_grep = True
+                else:
+                    # "grep <pattern> in <file>" is natural language content search;
+                    # a dotted path BEFORE any "in/inside" connector means a shell grep.
+                    connector_idx = next((i for i, w in enumerate(words[1:], start=1) if w in ("in", "inside")), None)
+                    if connector_idx is None:
+                        is_shell_grep = any(w.startswith(("./", "/", "~/", "../")) or "." in w for w in words[1:])
+                    else:
+                        is_shell_grep = any(w.startswith(("./", "/", "~/", "../")) or "." in w for w in words[1:connector_idx])
 
             if not is_shell_grep:
                 return None
@@ -470,7 +590,7 @@ class IntentRouter(BaseIntentClassifier):
 
     def _extract_content_search_args(self, text: str, trigger_keyword: str) -> tuple[str, str]:
         target_file = ""
-        path_match = re.search(r"inside\s+['\"]?(~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)['\"]?", text, re.IGNORECASE)
+        path_match = re.search(r"(?:inside|in)\s+['\"]?(~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)['\"]?", text, re.IGNORECASE)
         if path_match:
             target_file = path_match.group(1).strip().strip("'\"")
             if target_file.startswith("home/"):
@@ -484,7 +604,7 @@ class IntentRouter(BaseIntentClassifier):
 
         clean = re.sub(r"for\s+the\s+word\s+", "", clean, flags=re.IGNORECASE)
         clean = re.sub(r"for\s+", "", clean, flags=re.IGNORECASE)
-        clean = re.sub(r"inside\s+.*", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"\b(?:inside|in)\s+.*", "", clean, flags=re.IGNORECASE)
 
         return clean.strip().strip("'\""), target_file
 
@@ -495,7 +615,7 @@ class IntentRouter(BaseIntentClassifier):
 
     def _parse_reminder(self, text: str) -> tuple[int, str]:
         time_match = re.search(
-            r"in\s+(\d+)\s*(seconds?|minutes?|mins?|hours?|hrs?)", text
+            r"(?:in|for|after)\s+(\d+)\s*(seconds?|minutes?|mins?|hours?|hrs?)", text
         )
 
         delay = 60

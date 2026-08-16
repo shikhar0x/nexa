@@ -1,9 +1,11 @@
-from typing import Iterator
+from typing import Iterator, Optional
+import json
+import re
 import ollama
 
 from runtime.context import ConversationContext
 from config.settings import settings
-from config.constants import SYSTEM_PROMPT, GROUNDED_INTERPRETATION_PROMPT
+from config.constants import SYSTEM_PROMPT, GROUNDED_INTERPRETATION_PROMPT, INTENT_CLASSIFICATION_PROMPT
 from config.logger import logger
 
 
@@ -31,6 +33,10 @@ class LLMEngine:
             model=self.model_name,
             messages=messages,
             stream=True,
+            options={
+                "temperature": settings.temperature,
+                "num_ctx": settings.num_ctx,
+            },
         )
 
         for chunk in response_stream:
@@ -41,6 +47,40 @@ class LLMEngine:
     def generate(self, context: ConversationContext) -> str:
         """Non-streaming fallback method returning accumulated full response string."""
         return "".join(self.stream(context))
+
+    def classify_intent(self, user_input: str) -> Optional[dict]:
+        """
+        Use the SAME local model to map an unclassified user message to one of
+        Nexa's known intents. Returns {"intent": "<NAME>"} or None on any
+        failure (Ollama down, invalid JSON, unexpected output). The caller is
+        responsible for whitelisting the suggested intent.
+        """
+        try:
+            response = ollama.chat(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": INTENT_CLASSIFICATION_PROMPT},
+                    {"role": "user", "content": user_input},
+                ],
+                stream=False,
+                format="json",
+                options={
+                    "temperature": 0.0,
+                    "num_ctx": settings.num_ctx,
+                },
+            )
+            content = response.get("message", {}).get("content", "").strip()
+            # Tolerate fenced JSON output from smaller models
+            if content.startswith("```"):
+                content = re.sub(r"^```(?:json)?\s*", "", content)
+                content = re.sub(r"\s*```$", "", content)
+            parsed = json.loads(content)
+            if isinstance(parsed, dict) and isinstance(parsed.get("intent"), str):
+                return parsed
+            logger.debug(f"LLM classification returned unexpected shape: {parsed!r}")
+        except Exception as exc:
+            logger.debug(f"LLM intent classification failed, falling back to GENERAL: {exc}")
+        return None
 
     def _build_prompt(self, context: ConversationContext) -> str:
         prompt = SYSTEM_PROMPT
