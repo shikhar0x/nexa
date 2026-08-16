@@ -1,10 +1,13 @@
 from runtime.dispatcher import Dispatcher
+from runtime.intent_hybrid import HybridIntentClassifier
 from config.logger import logger
 
 
 def main():
     logger.info("Starting Nexa application...")
-    dispatcher = Dispatcher()
+    # Hybrid router: keyword router first, same-model LLM fallback second.
+    # The pipeline, skills, memory, and safety gate are unchanged.
+    dispatcher = Dispatcher(router=HybridIntentClassifier())
     dispatcher.initialize()
     print("Nexa is running. Type 'exit' to quit.\n")
 

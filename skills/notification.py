@@ -1,3 +1,4 @@
+from typing import Any
 from skills.base import BaseSkill, SkillResult, Capability
 from infrastructure.scheduler import Scheduler
 from infrastructure.notifications import send_notification

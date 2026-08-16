@@ -135,5 +135,102 @@
     "expected_intent": "GENERAL",
     "expected_skill": "GENERAL",
     "notes": "Conversational prompt intentionally expecting GENERAL intent"
+  },
+  {
+    "input": "what's eating my ram?",
+    "expected_intent": "PROCESS_INFO",
+    "expected_skill": "PROCESS_INFO",
+    "notes": "Natural language process query (previously fell through to SYSTEM_INFO/GENERAL)"
+  },
+  {
+    "input": "crank the screen brightness",
+    "expected_intent": "BRIGHTNESS_CONTROL",
+    "expected_skill": "BRIGHTNESS_CONTROL",
+    "expected_args_subset": {
+      "action": "set",
+      "level": 60
+    },
+    "notes": "Casual brightness phrasing without explicit number"
+  },
+  {
+    "input": "set a timer for 10 minutes to water the plants",
+    "expected_intent": "SET_REMINDER",
+    "expected_skill": "SET_REMINDER",
+    "expected_args_subset": {
+      "delay_seconds": 600,
+      "message": "water the plants"
+    },
+    "notes": "Timer phrasing with 'for' instead of 'in'"
+  },
+  {
+    "input": "make it louder",
+    "expected_intent": "VOLUME_CONTROL",
+    "expected_skill": "VOLUME_CONTROL",
+    "expected_args_subset": {
+      "action": "set",
+      "level": 60
+    },
+    "notes": "Casual volume phrasing"
+  },
+  {
+    "input": "kill the wifi",
+    "expected_intent": "WIFI_CONTROL",
+    "expected_skill": "WIFI_CONTROL",
+    "expected_args_subset": {
+      "action": "off"
+    },
+    "notes": "Casual wifi-off phrasing"
+  },
+  {
+    "input": "which files contain sql",
+    "expected_intent": "FILE_CONTENT_SEARCH",
+    "expected_skill": "FILE_CONTENT_SEARCH",
+    "expected_args_subset": {
+      "query": "sql"
+    },
+    "notes": "Natural language content search"
+  },
+  {
+    "input": "what's in my downloads",
+    "expected_intent": "DIRECTORY_LISTING",
+    "expected_skill": "DIRECTORY_LISTING",
+    "expected_args_subset": {
+      "path": "Downloads"
+    },
+    "notes": "Natural language directory listing"
+  },
+  {
+    "input": "what does this file say",
+    "expected_intent": "FILE_READ",
+    "expected_skill": "FILE_READ",
+    "expected_args_subset": {
+      "path": "active_file"
+    },
+    "notes": "Follow-up style file read using active file"
+  },
+  {
+    "input": "do you have any files about sql",
+    "expected_intent": "FILE_SEARCH",
+    "expected_skill": "FILE_SEARCH",
+    "expected_args_subset": {
+      "query": "sql"
+    },
+    "notes": "Conversational file search (also guards the 'do' RUN_COMMAND false positive)"
+  },
+  {
+    "input": "why is my laptop slow",
+    "expected_intent": "PROCESS_INFO",
+    "expected_skill": "PROCESS_INFO",
+    "notes": "Symptom-based process query"
+  },
+  {
+    "input": "ping me in 5 minutes to stretch",
+    "expected_intent": "SET_REMINDER",
+    "expected_skill": "SET_REMINDER",
+    "expected_args_subset": {
+      "delay_seconds": 300,
+      "message": "stretch"
+    },
+    "notes": "Casual reminder phrasing"
   }
 ]

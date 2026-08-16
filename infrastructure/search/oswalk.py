@@ -27,7 +27,8 @@ FILLER_WORDS = {
     "named", "called", "for", "to", "my", "the", "a", "an", "latest",
     "document", "documents", "folder", "folders", "look", "locate",
     "is", "where", "are", "me", "can", "you", "in", "inside", "of",
-    "show", "get", "display", "all", "any", "some", "with",
+    "show", "get", "display", "all", "any", "some", "with", "do", "have",
+    "got", "does", "there", "please", "need", "want",
 }
 
 
