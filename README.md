@@ -1,24 +1,23 @@
 # Nexa — Local-First AI Desktop Companion
 
-Nexa is a privacy-focused, local-first AI desktop companion featuring persistent memory across process restarts, natural language intent routing, desktop system monitoring, document text extraction, native token streaming, safe command execution, and a modular skill-based architecture.
+Nexa is a privacy-focused, local-first AI desktop companion with persistent memory, **hybrid intent routing** (deterministic rulebook → supervised LLM fallback), desktop monitoring, document extraction, token streaming, safe command execution, and a modular skill architecture. Everything runs locally with a single Ollama model.
 
 ---
 
 ## Key Features
 
-- 🧠 **Persistent Cross-Session Memory & CQRS Control**: Retains facts and context across restarts using SQLite for raw turn logging and ChromaDB for vector semantic search. Factual memory queries (`MEMORY_STATS`, `MEMORY_EXPORT`, `MEMORY_DELETE`, `MEMORY_CLEAR`) bypass the LLM deterministically (`use_llm=False`), eliminating hallucinations.
-- ⚡ **Native Token Streaming**: Real-time token streaming powered by Ollama's `stream=True` API and a dedicated `ConsoleRenderer` (`runtime/renderer.py`), providing responsive CLI output without screen redrawing.
-- 📄 **Document & Code Intelligence (`FileReaderSkill`)**: Extracts text from PDFs (`PyPDF2`), text documents, Markdown, JSON, CSV, and source code files (`.py`, `.js`, `.ts`, `.c`, `.cpp`, `.java`), safely feeding content to the LLM for reasoning.
-- 📍 **Workspace State Context**: Maintains lightweight conversation context (`workspace_state["active_file"]`) across turns so follow-up commands (*"summarize it"*, *"open it"*, *"search inside this file"*) work naturally.
-- 🧩 **Modular Skill Architecture**: Decoupled intent routing and skill registry (`skills/`) allowing new capabilities to be added without modifying core runtime code.
-- 💻 **Desktop System Integration**:
-  - **System Health**: Monitor CPU, RAM, disk, battery, and hardware stats in conversational language.
-  - **File Intelligence**: Search files by filename, search inside text files via `ripgrep`, and perform targeted document search.
-  - **Desktop Notifications & Reminders**: Timed reminders delivered via native OS notification systems (`notify-send`).
-- 🛡️ **Safety Gate**: All OS-modifying actions (opening applications, running shell commands, clearing memory) pass through explicit user confirmation (`confirm_action`).
-- 🛑 **Deterministic Error Handling**: Factual error responses on system operation failures prevent the LLM from fabricating excuses.
-- 🖥️ **OS Abstraction Layer**: Clean OS-independent interface (`infrastructure/os/`) isolating operating system calls.
-- 📝 **Structured Logging & Testing**: Configurable settings (`config/settings.py`), structured logging (`logs/nexa.log`), and 121 automated unit tests across 13 test files (`tests/`).
+- 🧠 **Persistent Cross-Session Memory (lazy vector sync)**: Conversation turns are stored in SQLite; ChromaDB semantic embeddings are synced in one batch only when memory is queried. This avoids per-turn embedding cost.
+- 🎯 **Hybrid Intent Routing**: A deterministic keyword rulebook (`config/constants.py`) handles common and safety-critical phrases with zero model calls. Other requests use a supervised JSON-mode LLM fallback against the capability index (`config/capabilities.py`). Destructive intents (`POWER_CONTROL`, `RUN_COMMAND`, `MEMORY_CLEAR`, `MEMORY_DELETE`, `MEMORY_EXPORT`, and `WIFI_CONTROL`) are keyword-only and can never be LLM-triggered.
+- ⚡ **Instant Deterministic Reports**: System health, OS, and network reports use zero model calls by default (`deterministic_system_report: True`). Disable it to have the LLM interpret the data conversationally.
+- 🗣️ **Small-Talk Fast Path**: Greetings, thanks, and capability questions are answered directly, avoiding a classification call.
+- 📄 **Document & Code Intelligence (`FileReaderSkill`)**: Reads PDFs (`PyPDF2`), text, Markdown, JSON, CSV, and source files (`.py`, `.js`, `.ts`, `.c`, `.cpp`, `.java`) for LLM reasoning.
+- 📍 **Workspace State Context**: Retains `workspace_state["active_file"]`, enabling natural follow-ups such as *“summarize it”*, *“open it”*, and *“search inside this file”*.
+- 🧩 **Modular Skill Architecture**: Intent routing and the skill registry (`skills/`) are decoupled, so new capabilities do not require core runtime changes.
+- 💻 **Desktop System Integration**: Health and hardware information; brightness, volume, Wi-Fi, and power controls; filename/content/document search; directory listing; reminders; and CPU/RAM process insights.
+- 🛡️ **Safety Gate**: Every OS-modifying action—including opening applications, shell commands, device or power controls, and memory clearing—requires `confirm_action`.
+- 🛑 **Deterministic Error Handling**: Factual error responses prevent fabricated explanations when system operations fail.
+- 🖥️ **OS Abstraction Layer**: OS calls are isolated behind `infrastructure/os/`.
+- 📝 **Structured Logging & Testing**: Configurable settings (`config/settings.py`), logs (`logs/nexa.log`), and 150+ automated tests across 24 test modules.
 
 ---
 
@@ -28,85 +27,111 @@ Nexa is a privacy-focused, local-first AI desktop companion featuring persistent
 nexa/
 ├── main.py                     # Minimal CLI loop
 ├── config/
-│   ├── settings.py             # Settings (models, paths, timeouts)
-│   ├── constants.py            # System keywords & prompt templates
-│   └── logger.py               # Centralized logging setup
+│   ├── settings.py             # Models, paths, timeouts, and speed knobs
+│   ├── constants.py            # Keyword rulebook and system prompts
+│   ├── capabilities.py         # Source of truth for LLM routing
+│   └── logger.py               # Centralized logging
 ├── runtime/
-│   ├── context.py              # ConversationContext DTO & workspace_state
-│   ├── dispatcher.py           # Central runtime orchestrator
-│   ├── intent.py               # Decoupled IntentRouter & IntentResult DTO
-│   ├── llm.py                  # LLMEngine accepting ConversationContext & streaming
-│   └── renderer.py             # ConsoleRenderer for live token streaming
+│   ├── context.py              # ConversationContext DTO & workspace state
+│   ├── dispatcher.py           # Runtime orchestrator
+│   ├── intent.py               # Deterministic router & IntentResult DTO
+│   ├── intent_hybrid.py        # Rulebook → LLM fallback → whitelist
+│   ├── llm.py                  # Streaming and JSON-mode intent classification
+│   └── renderer.py             # Live token renderer
 ├── skills/
-│   ├── base.py                 # BaseSkill & standardized SkillResult DTO (use_llm flag)
-│   ├── path_resolver.py        # Shared unified path resolver & working directory context
-│   ├── registry.py             # SkillRegistry with alias support
-│   ├── system_status.py        # SystemStatusSkill
-│   ├── file_reader.py          # FileReaderSkill (PDF, text, markdown, source code)
-│   ├── file_search.py          # FileSearchSkill & FileContentSearchSkill (targeted search)
-│   ├── memory_skill.py        # MemorySkill (CQRS stats, export, delete, clear, summarize)
-│   ├── open_file.py            # OpenFileSkill (Confirmation gate)
-│   ├── shell.py                # ShellExecutionSkill (Confirmation gate)
-│   └── notification.py         # ReminderSkill
+│   ├── base.py                 # BaseSkill & SkillResult DTO
+│   ├── registry.py             # Skill registry with aliases
+│   ├── resolver.py             # CapabilityResolver aggregation
+│   ├── system_status.py        # Deterministic system-health report
+│   ├── os_info.py              # Deterministic OS report
+│   ├── network_info.py         # Deterministic network report
+│   ├── process_info.py         # Process insights
+│   ├── directory_listing.py    # Directory listing
+│   ├── file_reader.py          # PDF, text, Markdown, and source reader
+│   ├── file_search.py          # Filename and content search
+│   ├── memory_skill.py         # Memory stats, list, search, export, delete, clear
+│   ├── open_file.py            # Confirmation-gated file opening
+│   ├── shell.py                # Confirmation-gated shell execution
+│   ├── notification.py         # Reminders
+│   ├── brightness.py / volume.py / wifi.py / power.py
+│   └── unsupported.py          # UnsupportedCapabilitySkill
 ├── memory/
-│   ├── service.py              # MemoryService facade with CQRS Read/Write API
-│   ├── db.py                   # SQLite conversation log
-│   ├── vector_store.py         # ChromaDB persistence & ephemeral client test helper
-│   └── retrieval.py            # Vector memory context retrieval
+│   ├── service.py              # CQRS memory-service facade
+│   ├── db.py                   # SQLite log + embedding tracker
+│   ├── vector_store.py         # ChromaDB persistence and lazy sync
+│   └── retrieval.py            # Memory-context retrieval
 ├── infrastructure/
-│   ├── scheduler.py            # Threaded Scheduler service
-│   ├── security.py             # Confirmation gate (confirm_action)
-│   ├── monitor.py              # System stats & hardware sensors provider
+│   ├── scheduler.py            # Threaded scheduler
+│   ├── security.py             # Confirmation gate
+│   ├── monitor.py              # System and hardware sensors
 │   ├── notifications.py        # Desktop notification helper
-│   ├── search/
-│   │   └── oswalk.py           # File, ripgrep, and PDF search backend
-│   └── os/
-│       ├── base.py             # BaseOSAdapter abstract class
-│       ├── linux.py            # LinuxOSAdapter (xdg-open, notify-send)
-│       └── factory.py          # OS adapter factory
-├── logs/                       # Application logs (nexa.log)
-└── tests/                      # Automated unit test suite (121 tests, 13 test modules)
+│   ├── search/oswalk.py        # File, ripgrep, and PDF search backend
+│   └── os/                     # OS adapter interface and Linux implementation
+├── logs/                       # Application logs
+└── tests/                      # 150+ automated tests
 ```
+
+---
+
+## How Routing Works
+
+```text
+User prompt
+    │
+    ▼
+1. Deterministic keyword rulebook (instant, 0 model calls)
+    │  matched ────────────► skill executes
+    │  GENERAL
+    ▼
+2. Small-talk / capability-question fast path (instant, 0 model calls)
+    │  matched ────────────► general chat
+    │  unmatched
+    ▼
+3. LLM fallback classification (one small call, JSON mode, ≤64 tokens)
+    │  suggestion validated against capability-index whitelist
+    │  safe & valid ──────► skill executes (arguments extracted deterministically)
+    │  invalid / unsafe ──► general chat
+```
+
+Destructive intents are never LLM-suggestable and always require `confirm_action`. Arguments are extracted deterministically with regex and the path resolver, never by the model—so it can route requests but cannot fabricate paths, levels, or commands. Unseen phrasings work because the fallback maps requests against the capability index’s descriptions and examples.
 
 ---
 
 ## Prerequisites
 
 - **Python 3.11+**
-- **Ollama** running locally with `llama3.2:3b` model pulled:
+- **Ollama**, with the default model:
+
   ```bash
   ollama pull llama3.2:3b
   ```
-- **ripgrep** (optional, for fast file content searching):
+
+- **ripgrep** (optional, for fast file-content search):
+
   ```bash
   sudo apt install ripgrep
   ```
+
+To avoid the initial model-load delay, keep Ollama warm in RAM:
+
+```bash
+OLLAMA_KEEP_ALIVE=-1 ollama serve
+```
+
+For a permanent systemd configuration, run `sudo systemctl edit ollama` and add `Environment="OLLAMA_KEEP_ALIVE=-1"` under `[Service]`.
 
 ---
 
 ## Installation & Setup
 
-1. **Clone or enter the directory:**
-   ```bash
-   cd nexa
-   ```
-
-2. **Set up virtual environment:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
----
+```bash
+cd nexa
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
 ## Usage
-
-Run the main CLI loop:
 
 ```bash
 python main.py
@@ -114,56 +139,93 @@ python main.py
 
 ### Example Prompts
 
-#### 1. System Monitoring
-- `"how's my battery?"`
-- `"what's my CPU usage like?"`
-- `"show os version"`
+#### System Monitoring (instant, no model)
 
-#### 2. Document Reading & Summarization
-- `"read report.pdf"`
-- `"summarize report.pdf"`
-- `"explain this document"`
-- `"search inside report.pdf for executive summary"`
+- “how's my battery?”
+- “what's my CPU usage like?”
+- “let's start with my pc health.”
+- “show os version” or “what's my ip?”
+- “what's eating my ram?” or “why is my laptop slow?”
 
-#### 3. Deterministic Memory Operations
-- `"show memory stats"`
-- `"export memory"`
-- `"forget color"`
-- `"clear memory"`
-- `"summarize what you know about Python"`
+#### Document Reading & Summarization
 
-#### 4. File & Content Search
-- `"find DBMS files"`
-- `"where is my report"`
-- `"search inside files for TODO"`
+- “read report.pdf”
+- “summarize report.pdf”
+- “what does this file say”
+- “search inside report.pdf for executive summary”
+- “which files contain sql”
 
-#### 5. Reminders & Notifications
-- `"remind me in 30 seconds to take a break"`
-- `"remind me in 5 minutes to check the build"`
+#### Deterministic Memory Operations
 
-#### 6. Safe Action Execution (Requests Confirmation)
-- `"open presentation.pdf"`
-- `"run command ls -la"`
+- “show memory stats” or “what do you remember”
+- “export memory”
+- “search memory for project goals”
+- “forget color”
+- “clear memory” or “erase all of your memory” (always confirmation-gated)
+- “summarize what you know about Python”
+
+#### File & Content Search
+
+- “find DBMS files” or “do you have any files about sql”
+- “where is my report”
+- “what's in my downloads”
+
+#### Reminders & Notifications
+
+- “remind me in 30 seconds to take a break”
+- “ping me in 5 minutes to stretch”
+
+#### Safe Actions (always request confirmation)
+
+- “open presentation.pdf”
+- “run command ls -la”
+- “set brightness to 80%”, “make it louder”, or “kill the wifi”
+- “shut it down” or “suspend my pc”
+
+#### Chat & Self-Knowledge
+
+- “hey there!”, “thanks”, or “tell me a joke”
+- “what can you do?” or “what are your skills?”
+
+---
+
+## Configuration
+
+The main runtime knobs are in [`config/settings.py`](config/settings.py).
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `llm_model` | `llama3.2:3b` | The single local model; `phi4-mini` also works well. |
+| `temperature` | `0.2` | Low randomness keeps answers grounded in real data. |
+| `num_ctx` | `4096` | Context window tuned for CPU laptops. |
+| `history_limit` | `2` | Recent conversation turns sent to the model. |
+| `memory_context_max_chars` | `1200` | Maximum injected memory-context length. |
+| `memory_min_messages_for_search` | `20` | Below this, vector search is skipped. |
+| `memory_context_recent_turns` | `2` | Recent turns used when vector search is skipped. |
+| `classification_max_tokens` | `64` | Intent-classification JSON response cap. |
+| `deterministic_system_report` | `True` | Instant system/OS/network reports; `False` enables LLM interpretation. |
+| `debug` | `NEXA_DEBUG` | Enables per-turn `[DEBUG TRACE]` instrumentation. |
 
 ---
 
 ## Running Unit Tests
 
-Run all 121 automated unit tests across 13 test modules:
-
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+Key suites: `test_hybrid_intent`, `test_capabilities`, `test_deterministic_reports`, `test_memory_lazy`, and `test_prompt_regressions` (fixtures in `tests/prompts.json`).
 
 ---
 
 ## Roadmap
 
-- [x] **Phase 1 — Foundation**: SQLite conversation log + ChromaDB vector memory persistence + CQRS MemorySkill.
-- [x] **Phase 2 — Desktop Integration & Runtime Stabilization**: System monitoring, file/PDF reader & search, native token streaming, notifications, safe action execution, workspace state working context, deterministic failure recovery, prompt regression suite.
-- [ ] **Phase 3 — Developer Mode**: Git integration, repo indexing, watchdog file watching, build log analysis.
-- [ ] **Phase 4 — Vision**: OCR, active window context, live screen understanding.
-- [ ] **Phase 5 — Voice Interface**: STT (Whisper), TTS (Piper), wake-word detection.
+- [x] **Phase 1 — Foundation**: SQLite conversation log, ChromaDB vector-memory persistence, and CQRS `MemorySkill`.
+- [x] **Phase 2 — Desktop Integration & Runtime Stabilization**: System monitoring, document reading/search, token streaming, notifications, safe actions, workspace state, deterministic failure recovery, and prompt regression tests.
+- [x] **Speed & Comprehension Pass**: Hybrid routing, small-talk fast path, lazy ChromaDB embeddings, deterministic system reports, and CPU-oriented prompt-size tuning.
+- [ ] **Phase 3 — Developer Mode**: Git integration, repository indexing, file watching, and build-log analysis.
+- [ ] **Phase 4 — Vision**: OCR, active-window context, and live screen understanding.
+- [ ] **Phase 5 — Voice Interface**: STT (Whisper), TTS (Piper), and wake-word detection.
 - [ ] **Phase 6 — Intelligence Layer**: Habit learning and proactive context prediction.
 
 ---
