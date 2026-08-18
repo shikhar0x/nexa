@@ -198,6 +198,7 @@ class Dispatcher:
                 use_llm = True
                 allow_interp = True
                 pending_act = None
+                any_skill_wants_llm = False
 
                 for skill in matched_skills:
                     res = skill.execute(intent.args, context)
@@ -207,11 +208,21 @@ class Dispatcher:
                         use_llm = False
                     if not res.allow_interpretation:
                         allow_interp = False
+                    if res.use_llm:
+                        any_skill_wants_llm = True
                     if res.pending_action:
                         pending_act = res.pending_action
                     aggregated_data[skill.name.lower()] = res.data
                     if res.message:
                         messages.append(res.message)
+
+                # Explanation override: if ANY fan-out skill wants the LLM
+                # (e.g. explicit "explain each term"), honor it — otherwise
+                # a deterministic OS/network report would suppress the
+                # explanation for the whole aggregated result.
+                if any_skill_wants_llm:
+                    use_llm = True
+                    allow_interp = True
 
                 result = SkillResult(
                     success=success,
