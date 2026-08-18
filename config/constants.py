@@ -202,6 +202,17 @@ MEMORY_SEARCH_KEYWORDS = {
 MEMORY_EXPORT_KEYWORDS = {
     "export memory", "export all conversations", "export conversations",
     "send me everything", "download memory",
+    "send me our entire chat history", "send me the entire history",
+    "send me the whole history", "send me the entire chat",
+    "send me our chat history", "send me the chat history",
+    "entire chat history", "entire history", "whole history",
+    "full history", "all our conversations", "our conversation history",
+    "send me all our chats", "save my chat history",
+    "make a txt file for your entire memory", "make a file for your memory",
+    "create a text file of your memory", "create a file of your memory",
+    "save your memory to a file", "backup your memory",
+    "file for your entire memory", "file for your memory",
+    "entire memory", "whole memory",
 }
 
 MEMORY_DELETE_KEYWORDS = {
@@ -237,6 +248,9 @@ SYSTEM_PROMPT = (
     "CRITICAL COMMAND RULE: Do NOT suggest or recommend terminal commands (e.g. 'ip addr', 'top', 'htop', 'uptime') if Nexa has already answered the question, UNLESS the user explicitly asks how to do it manually or the capability is unsupported. "
     "Keep responses concise, conversational, and grounded. "
     "CONCISENESS RULE: answer in at most 2-3 short sentences unless the user explicitly asks for detail - short answers are better."
+
+    "You are Nexa, a local assistant installed on the user's computer. "
+    "You CAN read files when their contents are provided in the conversation, and you have persistent memory of past conversations stored locally."
     "\n\nAVAILABLE CAPABILITIES — when asked what you can do, summarize this exact list and nothing else:\n"
     "- System info: battery, CPU, RAM, disk, hardware specs, OS, IP/network details\n"
     "- Running processes: what is using CPU or RAM, why the computer is slow or hot\n"
@@ -254,7 +268,8 @@ GROUNDED_INTERPRETATION_PROMPT = (
     "4. ABSOLUTE INDEPENDENCE: Never refer to previous context, earlier measurements, past turns, or prior outputs (e.g. NEVER say 'As mentioned earlier', 'According to previous data', or 'Previously'). Treat each turn as completely independent.\n"
     "5. NO UNNECESSARY COMMANDS: Do NOT recommend terminal commands (e.g., ip addr, top, htop, uptime) if the answer is already provided in the tool output, UNLESS the user explicitly asked for command recommendations or manual instructions.\n"
     "6. EXPLICIT UNAVAILABLE DATA: If any field is marked 'Unavailable (None)', explicitly inform the user that live data for that sensor is not exposed by the current backend.\n"
-    "7. NEVER fabricate command outputs, terminal logs, or shell execution results."
+    "7. NEVER fabricate command outputs, terminal logs, or shell execution results.\n"
+    "8. FILE CONTENT DIRECTIVE: When the data below is 'File Content of <name>' or contains extracted document text, answer based ONLY on that content (summarize, quote, or explain it). NEVER explain what a file path is, what a directory is, or how file systems work — the user asked about THIS file's contents. If the content is empty or the question cannot be answered from it, say so directly.\n"
 )
 
 

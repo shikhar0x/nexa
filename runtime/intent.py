@@ -241,9 +241,19 @@ class IntentRouter(BaseIntentClassifier):
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 
+        # ── 6b. Path Question ("what is '/path/file'?") -> FILE_READ ──
+        path_question = re.search(r"(?:what|what's|whats|tell me about|describe)\s+(?:is|are|about)?\s*['\"]?((?:~?/|home/|\./)[^'\"]+)['\"]?\??", user_input, re.IGNORECASE)
+        if path_question:
+            q_path = path_question.group(1).strip().strip("'\"")
+            if q_path.lower().startswith("home/"):
+                q_path = "/" + q_path
+            res = IntentResult(intent_name="FILE_READ", args={"path": q_path})
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
         # ── 7. System Info Query ──────────────────────────────────
         if _match_any(SYSTEM_INFO_KEYWORDS, text):
-            res = IntentResult(intent_name="SYSTEM_INFO")
+            res = IntentResult(intent_name="SYSTEM_INFO", args={"query": user_input})
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 
@@ -253,6 +263,14 @@ class IntentRouter(BaseIntentClassifier):
         for kw in FILE_READ_KEYWORDS:
             if _match_kw(kw, text):
                 extracted_path, search_path_hint = self._extract_file_read_args(user_input, kw)
+                # "explain it"/"summarize it" with no file noun and no real path
+                # is a conversational follow-up -> GENERAL, not a file read error.
+                if (
+                    not has_file_path
+                    and extracted_path == "active_file"
+                    and not any(_match_kw(noun, text) for noun in FILE_NOUNS)
+                ):
+                    continue
                 if kw in AMBIGUOUS_FILE_READ_KEYWORDS and not has_file_path and extracted_path not in ("active_file",):
                     continue
                 args = {"path": extracted_path}
@@ -562,7 +580,15 @@ class IntentRouter(BaseIntentClassifier):
         return path, search_hint
 
     def _extract_path(self, text: str, trigger_keyword: str) -> str:
-        # Match path starting with /, ~/, home/, or standard filenames, stripping quotes
+        # 1. Quoted paths may contain spaces: '.../Math Report.pdf' or ".../My File.txt"
+        quoted = re.search(r"['\"]((?:~?/|home/|\./)[^'\"]+)['\"]", text)
+        if quoted:
+            path = quoted.group(1).strip()
+            if path.startswith("home/"):
+                path = "/" + path
+            return path
+
+        # 2. Unquoted paths: absolute, home-relative, or standard filenames (no spaces)
         match = re.search(r"(?:^|\s)['\"]?(~?/[^\s,'\"]+|\bhome/[^\s,'\"]+|\b[a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)['\"]?", text)
         if match:
             path = match.group(1).strip().strip("'\"")

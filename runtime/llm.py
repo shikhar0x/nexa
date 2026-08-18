@@ -92,6 +92,24 @@ class LLMEngine:
         if context.memory_context:
             prompt += f"\n\n{context.memory_context}"
 
+        # TARGETED FILE-READ INSTRUCTION: when the user asked about a file
+        # ('what is <path>?', 'read <path>', 'summarize <path>'), rewrite the
+        # user's request into an explicit summarization command and place it
+        # immediately before the content. A 3B cannot miss a direct command,
+        # and cannot answer "what is X?" with a path lecture.
+        if context.skill_result and context.skill_result.message.startswith("File Content of"):
+            prompt += (
+                "\n\nTARGETED FILE-READ INSTRUCTION: The file content is below. "
+                "Answer the user's question about this file by summarizing or quoting that "
+                "CONTENT. Do NOT explain what a path is, what a directory is, or how file "
+                "systems work. If the content does not answer the question, say so in one sentence."
+            )
+            # Rewrite the user question into an unambiguous command
+            context.user_input = (
+                "Summarize the file content below and answer the user's question about it "
+                f"({context.user_input!r}). Base your answer ONLY on the content."
+            )
+
         formatted_tool_data = context.format_for_llm()
         if formatted_tool_data:
             prompt += f"\n\n{formatted_tool_data}"

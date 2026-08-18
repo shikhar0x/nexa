@@ -1,0 +1,4 @@
+#!/bin/bash
+cd ~/Desktop/nexa
+source venv/bin/activate
+exec python3 main.py

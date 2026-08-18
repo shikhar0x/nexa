@@ -28,6 +28,34 @@ class NetworkInfoSkill(BaseSkill):
         iface_lines = [f"  - {iface.name}: {iface.ip} (netmask: {iface.netmask or 'N/A'})" for iface in net_data.interfaces]
         iface_str = "\n".join(iface_lines) if iface_lines else "  - No active IPv4 interfaces found."
 
+        query = args.get("query") or ""
+        text = query.lower()
+        topics: set[str] = set()
+        if any(kw in text for kw in ("ip", "address")):
+            topics.add("ip")
+        if any(kw in text for kw in ("interface", "netmask", "network")):
+            topics.add("interfaces")
+        if any(kw in text for kw in ("hostname", "computer name")):
+            topics.add("hostname")
+
+        if topics:
+            lines = ["Network Configuration:"]
+            if "ip" in topics:
+                lines.append(f"• Primary Local IP: {net_data.local_ip} (on {net_data.primary_interface})")
+            if "hostname" in topics:
+                lines.append(f"• Hostname: {net_data.hostname}")
+            if "interfaces" in topics:
+                lines.append(f"• Interfaces:\n{iface_str}")
+            message = "\n".join(lines)
+            use_llm, allow_interpretation = deterministic_report_flags()
+            return SkillResult(
+                success=True,
+                data=data_dict,
+                message=message,
+                use_llm=use_llm,
+                allow_interpretation=allow_interpretation,
+            )
+
         message = (
             "Network Configuration:\n"
             f"• Primary Local IP: {net_data.local_ip} (on {net_data.primary_interface})\n"

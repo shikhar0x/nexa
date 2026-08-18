@@ -7,6 +7,7 @@ BaseIntentClassifier interface. The rest of the pipeline (Dispatcher,
 CapabilityResolver, skills, memory, safety gate) consumes only the
 IntentResult DTO and is completely unaware of this class.
 """
+import re
 from typing import Optional
 
 from runtime.intent import BaseIntentClassifier, IntentResult, IntentRouter
@@ -52,6 +53,20 @@ CAPABILITY_QUESTIONS = (
     "tell me about yourself",
 )
 
+# Short conversational follow-ups ("why?", "how?", "really?") that must
+# stay GENERAL and never trigger a skill or a classification call.
+SHORT_FOLLOWUPS = (
+    "why", "how", "really", "hmm", "huh", "ok", "okay", "and", "so",
+    "then", "wait", "which", "is it", "does it", "can it", "should i",
+    "do i", "what", "when", "where", "who",
+    "explain it", "explain it to me", "explain that", "explain this",
+    "explain the above", "explain the above response", "explain the above answer",
+    "explain what that means", "what does that mean", "what does it mean",
+    "what do you mean", "summarize it", "summarize that", "read it",
+    "read that", "tell me more", "go on", "continue", "more details",
+    "a bit more", "give me an example", "like what",
+)
+
 SMALL_TALK_PREFIXES = (
     "hey ", "hello ", "hi ", "yo ", "howdy", "good morning", "good afternoon",
     "good evening", "good night", "thank you", "thanks", "how are you",
@@ -84,8 +99,14 @@ class HybridIntentClassifier(BaseIntentClassifier):
         text = user_input.strip().lower().rstrip("!.?")
         if text in SMALL_TALK_EXACT or text.startswith(SMALL_TALK_PREFIXES):
             return True
-        # Capability questions ("what can you do?") also stay GENERAL
-        return any(q in text for q in CAPABILITY_QUESTIONS)
+        # Capability questions ("what can you do?") also stay GENERAL.
+        # Word-boundary match: 'so' must not match inside 'something'.
+        if any(re.search(rf"\b{re.escape(q)}\b", text) for q in CAPABILITY_QUESTIONS):
+            return True
+        # Short conversational follow-ups ("why?", "how?") stay GENERAL too
+        if text in SHORT_FOLLOWUPS:
+            return True
+        return False
 
     def classify(self, user_input: str) -> IntentResult:
         # 1. Deterministic keyword router always runs first
@@ -93,8 +114,9 @@ class HybridIntentClassifier(BaseIntentClassifier):
         if result.intent_name != "GENERAL" or not self.fallback_enabled:
             return result
 
-        # 2. Obvious chit-chat ("hey there!", "thanks") answers directly as
-        #    GENERAL — no classification call, no double model latency.
+        # 2. Obvious chit-chat ("hey there!", "thanks", "why?") answers
+        #    directly as GENERAL — no classification call, no double model
+        #    latency, and never a misrouted skill.
         if self._is_small_talk(user_input):
             logger.debug(f"Small-talk fast path for '{user_input}'; skipping LLM classification")
             return result
