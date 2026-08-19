@@ -343,6 +343,34 @@ class IntentRouter(BaseIntentClassifier):
                         logger.debug(f"Classified '{user_input}' -> {res}")
                         return res
 
+        # ── 9b. Memory Date Recall ("what did I do yesterday?") ──
+        if _match_any(("yesterday", "what did i do", "what did we do", "what did i talk about", "what did we talk about", "on monday", "on tuesday", "on wednesday", "on thursday", "on friday", "on saturday", "on sunday", "last week", "on the"), text):
+            from datetime import date, timedelta
+            target = date.today() - timedelta(days=1)
+            if "yesterday" not in text:
+                import re as _re2
+                day_map = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
+                day_match = _re2.search(r"\b(mon|tue|wed|thu|fri|sat|sun)\w*\b", text)
+                date_match = _re2.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", text)
+                if date_match:
+                    target = date(int(date_match.group(1)), int(date_match.group(2)), int(date_match.group(3)))
+                elif day_match:
+                    today_wd = date.today().weekday()
+                    target_wd = day_map[day_match.group(1)[:3]]
+                    delta = (today_wd - target_wd) % 7
+                    if delta == 0:
+                        delta = 7
+                    target = date.today() - timedelta(days=delta)
+            res = IntentResult(intent_name="MEMORY_DATE", args={"date": target.isoformat()})
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        # ── 10. Screenshot ───────────────
+        if _match_any(("screenshot", "screen capture", "capture screen", "capture the screen", "snapshot", "take a picture of the screen", "screen shot"), text):
+            res = IntentResult(intent_name="SCREENSHOT")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
         # Fallback intent
         res = IntentResult(intent_name="GENERAL")
         logger.debug(f"Classified '{user_input}' -> {res}")

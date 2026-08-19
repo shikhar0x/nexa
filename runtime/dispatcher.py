@@ -14,6 +14,7 @@ from skills.network_info import NetworkInfoSkill
 from skills.process_info import ProcessInfoSkill
 from skills.directory_listing import DirectoryListingSkill
 from skills.time_date import TimeDateSkill
+from skills.screenshot import ScreenshotSkill
 from skills.unsupported import UnsupportedCapabilitySkill
 from skills.file_search import FileSearchSkill, FileContentSearchSkill
 from skills.file_reader import FileReaderSkill
@@ -76,6 +77,7 @@ class Dispatcher:
         self.registry.register(ProcessInfoSkill())
         self.registry.register(DirectoryListingSkill())
         self.registry.register(TimeDateSkill())
+        self.registry.register(ScreenshotSkill())
         self.registry.register(UnsupportedCapabilitySkill())
         self.registry.register(FileSearchSkill())
         self.registry.register(FileContentSearchSkill())
@@ -98,6 +100,7 @@ class Dispatcher:
             "MEMORY_DELETE",
             "MEMORY_CLEAR",
             "MEMORY_SUMMARIZE",
+            "MEMORY_DATE",
         ):
             self.registry.register_alias(intent_name, mem_skill)
 

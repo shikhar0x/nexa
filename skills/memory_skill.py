@@ -35,8 +35,61 @@ class MemorySkill(BaseSkill):
             return self._handle_clear()
         elif intent == "MEMORY_SUMMARIZE":
             return self._handle_summarize(args.get("query", ""), context)
+        elif intent == "MEMORY_DATE":
+            return self._handle_date_recall(args.get("date", ""))
         else:
             return self._handle_stats()
+
+    def _handle_date_recall(self, date_str: str) -> SkillResult:
+        """Recall what was discussed on a specific date (e.g. yesterday)."""
+        if not date_str:
+            return SkillResult(
+                success=False,
+                message="No date provided for memory recall.",
+                use_llm=False,
+            )
+
+        from datetime import date, timedelta
+        try:
+            target = date.fromisoformat(date_str)
+        except ValueError:
+            return SkillResult(
+                success=False,
+                message=f"Invalid date '{date_str}'. Expected YYYY-MM-DD.",
+                use_llm=False,
+            )
+
+        turns = self.memory_service.get_memories_on_date(date_str)
+        if not turns:
+            return SkillResult(
+                success=True,
+                message=f"No recorded conversations from {target.strftime('%B %d, %Y')}.",
+                data={"date": date_str, "turns": []},
+                use_llm=False,
+            )
+
+        lines = [f"Conversations from {target.strftime('%B %d, %Y')} ({len(turns)} messages):\n"]
+        for t in turns:
+            role = "You" if t["role"] == "user" else "Nexa"
+            content = t["content"].strip()
+            # User messages shown in full (they're short); assistant responses
+            # truncated so long reports don't flood the recall view.
+            if t["role"] == "assistant" and len(content) > 200:
+                # Cut at the end of the FIRST line so the preview is clean:
+                # "Real-time System Hardware & Status: ..." instead of a
+                # mid-line chop through CPU/GPU/RAM.
+                first_line = content.split("\n", 1)[0].strip()
+                if len(first_line) > 120:
+                    first_line = first_line[:120].rstrip()
+                content = first_line + "…"
+            lines.append(f"• [{t['timestamp'][:16]}] {role}: {content}")
+
+        return SkillResult(
+            success=True,
+            data={"date": date_str, "turns": turns},
+            message="\n".join(lines),
+            use_llm=False,
+        )
 
     def _handle_stats(self) -> SkillResult:
         stats = self.memory_service.get_memory_stats()

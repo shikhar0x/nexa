@@ -89,6 +89,24 @@ class MemoryService:
             for r in rows
         ]
 
+    def get_memories_on_date(self, date_str: str) -> list[dict]:
+        """Return all conversation turns whose timestamp starts with the given
+        date (YYYY-MM-DD). Used for 'what did I do yesterday?'-style recall."""
+        conn = sqlite3.connect(settings.db_path)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, role, content, timestamp FROM messages "
+            "WHERE timestamp LIKE ? ORDER BY id ASC",
+            (date_str + "%",),
+        )
+        rows = cur.fetchall()
+        conn.close()
+
+        return [
+            {"id": r[0], "role": r[1], "content": r[2], "timestamp": r[3]}
+            for r in rows
+        ]
+
     def get_recent_conversation(self, limit: int = 6) -> list[dict[str, str]]:
         """Return the N most recent conversation turns in chronological order."""
         recent = self.list_recent_memories(limit=limit)
