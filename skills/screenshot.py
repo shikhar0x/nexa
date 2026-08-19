@@ -72,7 +72,7 @@ class ScreenshotSkill(BaseSkill):
     """Takes a full-screen screenshot using the system's screenshot tool."""
 
     name = "SCREENSHOT"
-    description = "Captures the full screen to a PNG file in ~/Pictures/screenshots."
+    description = "Captures the full screen to a PNG file in ~/Pictures/Screenshots."
     permissions = ["CONFIRM_REQUIRED", "SYSTEM_CONTROL"]
     capability = Capability(
         name="screenshot",
@@ -91,7 +91,7 @@ class ScreenshotSkill(BaseSkill):
                 use_llm=False,
             )
 
-        shots_dir = os.path.join(os.path.expanduser("~"), "Pictures", "screenshots")
+        shots_dir = os.path.join(os.path.expanduser("~"), "Pictures", "Screenshots")
         os.makedirs(shots_dir, exist_ok=True)
         filename = "screenshot_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".png"
         out_path = os.path.join(shots_dir, filename)
