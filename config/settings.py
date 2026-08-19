@@ -16,7 +16,7 @@ class Settings:
     working_directory_timeout: float = 300.0
     temperature: float = 0.2  # Low randomness: keep answers grounded in real data
     num_ctx: int = 4096  # Context window for the local model (tuned for CPU laptops)
-    history_limit: int = 2  # Recent conversation turns sent to the model (fewer = faster)
+    history_limit: int = 6  # Recent conversation turns sent to the model (fewer = faster)
     memory_context_max_chars: int = 1200  # Cap on injected memory context (fewer = faster)
     memory_min_messages_for_search: int = 20  # Below this, vector search is skipped (no embeddings)
     memory_context_recent_turns: int = 2  # Recent turns injected as context when vector search is skipped
