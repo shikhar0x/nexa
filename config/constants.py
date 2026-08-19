@@ -121,6 +121,17 @@ REMINDER_KEYWORDS = {
 
 OPEN_KEYWORDS = {"open", "launch", "start"}
 
+TIME_DATE_KEYWORDS = {
+    "what time is it", "what's the time", "whats the time", "current time",
+    "what time is it right now", "what is the time", "what time", "time now",
+    "what's today's date", "whats todays date", "today's date", "todays date",
+    "what is today's date", "what date is it", "what's the date",
+    "whats the date", "what is the date", "current date", "what day is it",
+    "what day is today", "what's today", "whats today", "date today",
+    "what's the date today", "whats the date today", "today's date is",
+    "what is the date today", "date", "what time is it in", "day of the week",
+}
+
 RUN_KEYWORDS = {"run", "execute", "run command", "shell", "exec", "bash", "cmd", "do"}
 
 KNOWN_SHELL_COMMANDS = {

@@ -13,6 +13,7 @@ from skills.os_info import OSInfoSkill
 from skills.network_info import NetworkInfoSkill
 from skills.process_info import ProcessInfoSkill
 from skills.directory_listing import DirectoryListingSkill
+from skills.time_date import TimeDateSkill
 from skills.unsupported import UnsupportedCapabilitySkill
 from skills.file_search import FileSearchSkill, FileContentSearchSkill
 from skills.file_reader import FileReaderSkill
@@ -74,6 +75,7 @@ class Dispatcher:
         self.registry.register(NetworkInfoSkill())
         self.registry.register(ProcessInfoSkill())
         self.registry.register(DirectoryListingSkill())
+        self.registry.register(TimeDateSkill())
         self.registry.register(UnsupportedCapabilitySkill())
         self.registry.register(FileSearchSkill())
         self.registry.register(FileContentSearchSkill())

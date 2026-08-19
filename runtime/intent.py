@@ -11,6 +11,7 @@ from config.constants import (
     FILE_CONTENT_KEYWORDS,
     FILE_READ_KEYWORDS,
     REMINDER_KEYWORDS,
+    TIME_DATE_KEYWORDS,
     OPEN_KEYWORDS,
     RUN_KEYWORDS,
     KNOWN_SHELL_COMMANDS,
@@ -248,6 +249,12 @@ class IntentRouter(BaseIntentClassifier):
             if q_path.lower().startswith("home/"):
                 q_path = "/" + q_path
             res = IntentResult(intent_name="FILE_READ", args={"path": q_path})
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        # ── 6d. Time & Date Query ──────────────
+        if _match_any(TIME_DATE_KEYWORDS, text):
+            res = IntentResult(intent_name="TIME_DATE")
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 

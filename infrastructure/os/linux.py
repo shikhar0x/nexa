@@ -77,26 +77,144 @@ class LinuxOSAdapter(BaseOSAdapter):
 
     # ── Volume Control ───────────────────────────────────────────
 
-    def get_volume(self) -> dict:
-        """Read current system volume via pactl."""
-        logger.debug("LinuxOSAdapter reading volume via pactl")
+    def _pactl_available(self) -> bool:
         try:
-            res = self.run_command(
-                ["pactl", "get-sink-volume", "@DEFAULT_SINK@"], timeout=5
-            )
+            res = self.run_command(["pactl", "--version"], timeout=5)
+            return res.returncode == 0
+        except Exception:
+            return False
+
+    def _wpctl_available(self) -> bool:
+        try:
+            res = self.run_command(["wpctl", "--version"], timeout=5)
+            return res.returncode == 0
+        except Exception:
+            return False
+
+    def get_volume(self) -> dict:
+        """Read current system volume, trying pactl then wpctl then amixer."""
+        if self._pactl_available():
+            logger.debug("LinuxOSAdapter reading volume via pactl")
+            try:
+                res = self.run_command(["pactl", "get-sink-volume", "@DEFAULT_SINK@"], timeout=5)
+                if res.returncode != 0:
+                    return {"error": res.stderr.strip() or "pactl get-sink-volume failed"}
+                match = _re.search(r"(\d+)%", res.stdout)
+                percent = int(match.group(1)) if match else -1
+                mute_res = self.run_command(["pactl", "get-sink-mute", "@DEFAULT_SINK@"], timeout=5)
+                muted = "yes" in mute_res.stdout.lower() if mute_res.returncode == 0 else False
+                return {"percent": percent, "muted": muted}
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                return {"error": str(e)}
+
+        if self._wpctl_available():
+            logger.debug("LinuxOSAdapter reading volume via wpctl")
+            try:
+                res = self.run_command(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"], timeout=5)
+                if res.returncode != 0:
+                    return {"error": res.stderr.strip() or "wpctl get-volume failed"}
+                match = _re.search(r"([\d.]+)", res.stdout)
+                percent = int(round(float(match.group(1)) * 100)) if match else -1
+                muted = "MUTED" in res.stdout.upper()
+                return {"percent": percent, "muted": muted}
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                return {"error": str(e)}
+
+        try:
+            logger.debug("LinuxOSAdapter reading volume via amixer")
+            res = self.run_command(["amixer", "get", "Master"], timeout=5)
             if res.returncode != 0:
-                return {"error": res.stderr.strip() or "pactl get-sink-volume failed"}
+                return {"error": res.stderr.strip() or "amixer get Master failed"}
             match = _re.search(r"(\d+)%", res.stdout)
             percent = int(match.group(1)) if match else -1
-
-            mute_res = self.run_command(
-                ["pactl", "get-sink-mute", "@DEFAULT_SINK@"], timeout=5
-            )
-            muted = "yes" in mute_res.stdout.lower() if mute_res.returncode == 0 else False
-
+            muted = "[off]" in res.stdout.lower() or "muted" in res.stdout.lower()
             return {"percent": percent, "muted": muted}
         except FileNotFoundError:
-            return {"error": "pactl is not installed"}
+            return {"error": "no audio backend available (pactl, wpctl, amixer all missing)"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def set_volume(self, percent: int) -> dict:
+        """Set system volume, trying pactl then wpctl then amixer."""
+        percent = max(0, min(150, percent))
+        if self._pactl_available():
+            logger.debug(f"LinuxOSAdapter setting volume to {percent}% via pactl")
+            try:
+                res = self.run_command(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{percent}%"], timeout=5)
+                if res.returncode != 0:
+                    return {"error": res.stderr.strip() or "pactl set-sink-volume failed"}
+                return {"percent": percent, "status": "set"}
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                return {"error": str(e)}
+
+        if self._wpctl_available():
+            logger.debug(f"LinuxOSAdapter setting volume to {percent}% via wpctl")
+            try:
+                vol = percent / 100.0
+                res = self.run_command(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{vol:.2f}"], timeout=5)
+                if res.returncode != 0:
+                    return {"error": res.stderr.strip() or "wpctl set-volume failed"}
+                return {"percent": percent, "status": "set"}
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                return {"error": str(e)}
+
+        try:
+            logger.debug(f"LinuxOSAdapter setting volume to {percent}% via amixer")
+            res = self.run_command(["amixer", "set", "Master", f"{percent}%"], timeout=5)
+            if res.returncode != 0:
+                return {"error": res.stderr.strip() or "amixer set Master failed"}
+            return {"percent": percent, "status": "set"}
+        except FileNotFoundError:
+            return {"error": "no audio backend available (pactl, wpctl, amixer all missing)"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def set_mute(self, mute: bool) -> dict:
+        """Mute or unmute system audio, trying pactl then wpctl then amixer."""
+        state = "1" if mute else "0"
+        label = "muted" if mute else "unmuted"
+        if self._pactl_available():
+            logger.debug(f"LinuxOSAdapter setting mute={mute} via pactl")
+            try:
+                res = self.run_command(["pactl", "set-sink-mute", "@DEFAULT_SINK@", state], timeout=5)
+                if res.returncode != 0:
+                    return {"error": res.stderr.strip() or "pactl set-sink-mute failed"}
+                return {"muted": mute, "status": label}
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                return {"error": str(e)}
+
+        if self._wpctl_available():
+            logger.debug(f"LinuxOSAdapter setting mute={mute} via wpctl")
+            try:
+                verb = "mute" if mute else "unmute"
+                res = self.run_command(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", verb], timeout=5)
+                if res.returncode != 0:
+                    return {"error": res.stderr.strip() or "wpctl set-mute failed"}
+                return {"muted": mute, "status": label}
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                return {"error": str(e)}
+
+        try:
+            logger.debug(f"LinuxOSAdapter setting mute={mute} via amixer")
+            verb = "mute" if mute else "unmute"
+            res = self.run_command(["amixer", "set", "Master", verb], timeout=5)
+            if res.returncode != 0:
+                return {"error": res.stderr.strip() or "amixer set Master failed"}
+            return {"muted": mute, "status": label}
+        except FileNotFoundError:
+            return {"error": "no audio backend available (pactl, wpctl, amixer all missing)"}
         except Exception as e:
             return {"error": str(e)}
 
