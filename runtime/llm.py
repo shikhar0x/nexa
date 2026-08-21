@@ -14,6 +14,26 @@ class LLMEngine:
 
     def __init__(self, model_name: str | None = None) -> None:
         self.model_name = model_name or settings.llm_model
+        self._ensure_model_exists()
+
+    def _ensure_model_exists(self) -> None:
+        """Check if LLM model exists locally, pulling it automatically if missing."""
+        try:
+            available_models = [m.model for m in ollama.list().models]
+            model_base = self.model_name.split(":")[0]
+            if not any(m.split(":")[0] == model_base for m in available_models):
+                print(f"\nNexa: Required LLM model '{self.model_name}' not found locally.")
+                print(f"Downloading '{self.model_name}' from the Ollama library. Please wait...")
+                current_status = None
+                for status in ollama.pull(self.model_name, stream=True):
+                    status_str = status.get("status", "")
+                    if status_str != current_status:
+                        current_status = status_str
+                        print(f"  -> {status_str}")
+                print(f"Nexa: '{self.model_name}' has been successfully downloaded and loaded!\n")
+        except Exception as e:
+            logger.warning(f"Failed to automatically pull model '{self.model_name}': {e}")
+            print(f"\nNexa Warning: Could not verify/download model '{self.model_name}': {e}\n")
 
     def stream(self, context: ConversationContext) -> Iterator[str]:
         """

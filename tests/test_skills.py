@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from runtime.context import ConversationContext
 from skills.base import SkillResult, BaseSkill
 from skills.registry import SkillRegistry
@@ -18,6 +19,7 @@ class TestSkills(unittest.TestCase):
         self.assertEqual(self.registry.get("SYSTEM_STATUS"), skill)
         self.assertIn("SYSTEM_STATUS", self.registry.list_skills())
 
+    @patch("skills.base.settings.deterministic_system_report", False)
     def test_system_status_skill(self):
         skill = SystemStatusSkill()
         result = skill.execute({}, self.context)

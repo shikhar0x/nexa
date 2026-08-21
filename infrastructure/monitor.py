@@ -55,6 +55,22 @@ def _get_gpu_details() -> dict[str, Any]:
     usage_percent = None
     vram_str = None
 
+    # 0. Attempt system_profiler for macOS
+    if platform.system() == "Darwin":
+        try:
+            res = os_adapter.run_command(["system_profiler", "SPDisplaysDataType"], timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    if "Chipset Model" in line:
+                        gpu_name = line.split(":", 1)[1].strip()
+                        return {
+                            "name": canonicalize_gpu_name(gpu_name),
+                            "usage_percent": None,
+                            "vram": "Unified Memory",
+                        }
+        except Exception:
+            pass
+
     # 1. Attempt nvidia-smi for NVIDIA GPUs
     try:
         res = os_adapter.run_command(

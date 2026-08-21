@@ -12,6 +12,8 @@ def get_os_adapter() -> BaseOSAdapter:
     elif sys.platform == "win32":
         raise NotImplementedError("Windows OS adapter is not implemented yet.")
     elif sys.platform == "darwin":
-        raise NotImplementedError("macOS OS adapter is not implemented yet.")
+        from infrastructure.os.macos import MacOSAdapter
+        logger.debug("Selected MacOSAdapter")
+        return MacOSAdapter()
     else:
         raise NotImplementedError(f"Unsupported operating system platform: {sys.platform}")
