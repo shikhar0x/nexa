@@ -107,7 +107,9 @@ class TestIntentRouter(unittest.TestCase):
             ("python main.py", "RUN_COMMAND", "python main.py"),
             ("run ls", "RUN_COMMAND", "ls"),
             ("run git status", "RUN_COMMAND", "git status"),
-            ("git status", "RUN_COMMAND", "git status"),
+            # Bare "git status" is claimed by the GitSkill section, which runs
+            # BEFORE shell routing by design. "run git status" stays RUN_COMMAND.
+            ("git status", "GIT_STATUS", None),
             ("run command ls -la", "RUN_COMMAND", "ls -la"),
         ]
 

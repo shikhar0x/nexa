@@ -48,6 +48,33 @@ AMBIGUOUS_FILE_READ_KEYWORDS = {
     "explain", "summarize", "read", "show", "get", "print", "extract", "display"
 }
 
+# Repo indexing / project summary phrases (developer-mode project overview).
+# Kept specific ("this project", "the repo", "codebase") so generic words like
+# "project" alone never hijack unrelated queries.
+REPO_INDEX_KEYWORDS = (
+    "index this repo", "index the repo", "index my repo",
+    "index this project", "index the project", "index my project",
+    "index this codebase", "index the codebase",
+    "what does this project do", "what does the project do", "what does my project do",
+    "what does this repo do", "what does the repo do", "what does this codebase do",
+    "what is this project", "what's this project", "what is the project about",
+    "what is this repo", "what's this repo", "what is this codebase",
+    "explain this project", "explain the project", "explain my project",
+    "explain this repo", "explain the repo", "explain my repo",
+    "explain this codebase", "explain the codebase",
+    "summarize this project", "summarize the project", "summarize my project",
+    "summarize this repo", "summarize the repo", "summarize this codebase",
+    "summarise this project", "summarise this repo",
+    "project overview", "repo overview", "codebase overview",
+    "project structure", "repo structure", "codebase structure",
+    "analyze this project", "analyze the project", "analyze this repo",
+    "analyse this project", "analyse this repo",
+    "scan this project", "scan this repo", "scan the repo",
+    "tell me about this project", "tell me about the project", "tell me about this repo",
+    "walk me through this project", "walk me through this repo", "walk me through the codebase",
+    "entry point", "tech stack",
+)
+
 
 def _match_kw(kw: str, text: str) -> bool:
     """Check if keyword matches as a distinct whole phrase using regex word boundaries."""
@@ -181,6 +208,19 @@ class IntentRouter(BaseIntentClassifier):
                 res = IntentResult(intent_name="GIT_ADD_COMMIT", args={"message": msg})
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
+            # Stage-only add. Placed AFTER add-and-commit so "git add and commit"
+            # keeps winning; the trailing regex catches "add <paths> to git".
+            if _match_any(("git add", "add to git", "git stage", "stage these files", "stage this file",
+                           "stage the files", "stage my changes", "track these files", "track this file",
+                           "add everything to git", "add all my changes"), text) \
+                    or re.search(r"\badd\b[\w\s,'\"|.+-]*?\bto git\b", text):
+                add_paths = re.findall(
+                    r"(?:~?/[^\s,'\"|]+|\./[^\s,'\"|]+|[a-zA-Z0-9_\-]+(?:/[a-zA-Z0-9_.\-]+)+|[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)",
+                    user_input,
+                )
+                res = IntentResult(intent_name="GIT_ADD", args={"paths": add_paths})
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
             if _match_any(("commit ", "git commit"), text):
                 import re as _re3
                 msg = ""
@@ -199,6 +239,14 @@ class IntentRouter(BaseIntentClassifier):
                 res = IntentResult(intent_name="GIT_CHECKOUT", args={"branch": br})
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
+
+        # ── 2d. Repo Indexing / Project Summary ─────────────
+        if _match_any(REPO_INDEX_KEYWORDS, text):
+            m = re.search(r"['\"]?((?:~?/|home/|\./)[^'\"]+)['\"]?", user_input)
+            repo_path = m.group(1).strip() if m else ""
+            res = IntentResult(intent_name="REPO_INDEX", args={"path": repo_path})
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
 
         # ── 3. Shell Command Priority (Check BEFORE semantic status/file intents) ─
         run_res = self._detect_run_command(text, user_input)
@@ -513,6 +561,10 @@ class IntentRouter(BaseIntentClassifier):
 
         if intent_name == "OPEN_FILE":
             return {"path": self._extract_directory_path(user_input)}
+
+        if intent_name == "REPO_INDEX":
+            m = re.search(r"['\"]?((?:~?/|home/|\./)[^'\"]+)['\"]?", user_input)
+            return {"path": m.group(1).strip().strip("'\"") if m else ""}
 
         # SYSTEM_INFO / PROCESS_INFO / MEMORY_STATS / MEMORY_LIST take no args
         return {}

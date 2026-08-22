@@ -10,7 +10,7 @@ from skills.path_resolver import resolve_path, validate_exists
 from infrastructure.search.oswalk import OsWalkSearchBackend, format_search_results, normalize_file_query
 
 try:
-    from PyPDF2 import PdfReader
+    from pypdf import PdfReader
 except ImportError:
     PdfReader = None
 
@@ -190,7 +190,7 @@ class FileContentSearchSkill(BaseSkill):
             if PdfReader is None:
                 return SkillResult(
                     success=False,
-                    message="PyPDF2 is not installed — run: pip install PyPDF2",
+                    message="pypdf is not installed — run: pip install pypdf",
                     use_llm=False,
                 )
             try:

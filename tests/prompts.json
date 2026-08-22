@@ -232,5 +232,32 @@
       "message": "stretch"
     },
     "notes": "Casual reminder phrasing"
+  },
+  {
+    "input": "index this repo",
+    "expected_intent": "REPO_INDEX",
+    "expected_skill": "REPO_INDEX",
+    "expected_args_subset": {
+      "path": ""
+    },
+    "notes": "Repo indexing on the current working directory"
+  },
+  {
+    "input": "What does this project do?",
+    "expected_intent": "REPO_INDEX",
+    "expected_skill": "REPO_INDEX",
+    "expected_args_subset": {
+      "path": ""
+    },
+    "notes": "Natural-language project summary request"
+  },
+  {
+    "input": "explain this codebase in /tmp",
+    "expected_intent": "REPO_INDEX",
+    "expected_skill": "REPO_INDEX",
+    "expected_args_subset": {
+      "path": "/tmp"
+    },
+    "notes": "Project summary with explicit absolute path"
   }
 ]

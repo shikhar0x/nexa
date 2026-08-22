@@ -8,7 +8,7 @@ from config.logger import logger
 
 
 try:
-    from PyPDF2 import PdfReader
+    from pypdf import PdfReader
 except ImportError:
     PdfReader = None
 
@@ -170,7 +170,7 @@ class FileReaderSkill(BaseSkill):
 
     def _read_pdf(self, path: str) -> str:
         if PdfReader is None:
-            raise ImportError("PyPDF2 is not installed — run: pip install PyPDF2")
+            raise ImportError("pypdf is not installed — run: pip install pypdf")
 
         reader = PdfReader(path)
         pages_text = []

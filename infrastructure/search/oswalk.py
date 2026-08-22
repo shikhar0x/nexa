@@ -10,7 +10,7 @@ from infrastructure.os import os_adapter
 from skills.path_resolver import resolve_path, validate_exists, SPECIAL_FOLDERS
 
 try:
-    from PyPDF2 import PdfReader
+    from pypdf import PdfReader
 except ImportError:
     PdfReader = None
 
@@ -126,7 +126,7 @@ def _is_skipped(path: Path, root: Path) -> bool:
 
 
 class OsWalkSearchBackend:
-    """File search implementation using pathlib.Path.rglob, ripgrep, and PyPDF2."""
+    """File search implementation using pathlib.Path.rglob, ripgrep, and pypdf."""
 
     def search_filenames(self, query: str, search_path: str | Path | None = None) -> list[str]:
         matches, _ = self.search_filenames_with_stats(query, search_path=search_path)
@@ -289,7 +289,7 @@ class OsWalkSearchBackend:
 
     def search_pdf_content(self, query: str, search_path: str | None = None) -> list[str]:
         if PdfReader is None:
-            return ["PyPDF2 not installed — run: pip install PyPDF2"]
+            return ["pypdf not installed — run: pip install pypdf"]
 
         logger.debug(f"Starting PDF search for '{query}'...")
         matches = []

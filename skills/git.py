@@ -42,8 +42,8 @@ class GitSkill(BaseSkill):
     permissions = ["READ_GIT", "CONFIRM_REQUIRED"]
     capability = Capability(
         name="git",
-        description="Git repository status, branch, diff, log, commits, checkouts",
-        supports=["git", "branch", "commit", "diff", "status", "repo"],
+        description="Git repository status, branch, diff, log, staging, commits, checkouts",
+        supports=["git status", "git diff", "git log", "working tree", "uncommitted changes"],
         requires_confirmation=False,
         deterministic=True,
     )
@@ -59,6 +59,7 @@ class GitSkill(BaseSkill):
             "GIT_BRANCH": "branch",
             "GIT_DIFF": "diff",
             "GIT_LOG": "log",
+            "GIT_ADD": "add",
             "GIT_COMMIT": "commit",
             "GIT_ADD_COMMIT": "add_commit",
             "GIT_CHECKOUT": "checkout",
@@ -75,6 +76,8 @@ class GitSkill(BaseSkill):
             return self._diff(cwd, args.get("path"))
         if action == "log":
             return self._log(cwd, args.get("limit", 10))
+        if action == "add":
+            return self._add(cwd, args.get("paths"))
         if action == "commit":
             return self._commit(cwd, args.get("message", ""))
         if action == "add_commit":
@@ -137,6 +140,26 @@ class GitSkill(BaseSkill):
         if code != 0:
             return SkillResult(success=False, message=f"git commit failed: {err.strip()}", use_llm=False)
         return SkillResult(success=True, message=f"Committed:\n{out.strip()}", use_llm=False)
+
+    def _add(self, cwd: str | None, paths: list[str] | None) -> SkillResult:
+        """Stage files (everything with -A when no paths given), behind confirmation."""
+        stage_all = not paths
+        cmd_desc = "git add -A" if stage_all else f"git add -- {' '.join(paths)}"
+        if not confirm_action(cmd_desc):
+            return SkillResult(success=False, message="Cancelled — nothing was staged.", use_llm=False)
+        cmd = ["add", "-A"] if stage_all else ["add", "--"] + list(paths)
+        code, _, err = _git(cmd, cwd=cwd)
+        if code != 0:
+            return SkillResult(success=False, message=f"git add failed: {err.strip()}", use_llm=False)
+        _, staged_out, _ = _git(["diff", "--cached", "--name-only"], cwd=cwd)
+        files = [l for l in staged_out.splitlines() if l.strip()]
+        if not files:
+            return SkillResult(success=True, message="Nothing to stage (working tree clean).", use_llm=False)
+        shown = "\n".join(f"  {f}" for f in files[:20])
+        msg = f"Staged {len(files)} file(s):\n{shown}"
+        if len(files) > 20:
+            msg += f"\n  … and {len(files) - 20} more"
+        return SkillResult(success=True, message=msg, data={"staged": files}, use_llm=False)
 
     def _add_commit(self, cwd: str | None, message: str) -> SkillResult:
         """Stage all changes + commit, behind one confirmation."""
