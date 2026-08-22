@@ -7,6 +7,7 @@ from runtime.llm import LLMEngine
 from runtime.renderer import ConsoleRenderer
 from skills.base import BaseSkill, SkillResult
 from skills.build_log import BuildLogSkill
+from skills.repo_index import RepoIndexSkill
 from skills.registry import SkillRegistry
 from skills.resolver import CapabilityResolver
 from skills.system_status import SystemStatusSkill
@@ -82,6 +83,12 @@ class Dispatcher:
         self.registry.register(ScreenshotSkill())
         self.registry.register(GitSkill())
         self.registry.register(BuildLogSkill())
+        self.registry.register(RepoIndexSkill())
+        # Repo-index intents map to RepoIndexSkill
+        repo_skill = self.registry.get("REPO_INDEX")
+        for ri_intent in ("REPO_INDEX",):
+            self.registry.register_alias(ri_intent, repo_skill)
+
         # Git intents map to the GitSkill (not memory!)
         git_skill = self.registry.get("GIT")
         for git_intent in ("GIT_STATUS", "GIT_BRANCH", "GIT_DIFF", "GIT_LOG", "GIT_COMMIT", "GIT_ADD_COMMIT", "GIT_CHECKOUT"):
