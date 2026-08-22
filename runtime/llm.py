@@ -33,7 +33,8 @@ class LLMEngine:
                 print(f"Nexa: '{self.model_name}' has been successfully downloaded and loaded!\n")
         except Exception as e:
             logger.warning(f"Failed to automatically pull model '{self.model_name}': {e}")
-            print(f"\nNexa Warning: Could not verify/download model '{self.model_name}': {e}\n")
+            # Non-fatal: the model may be pulled later or via a different path.
+            logger.debug(f"Could not verify model '{self.model_name}': {e}")
 
     def stream(self, context: ConversationContext) -> Iterator[str]:
         """

@@ -60,6 +60,7 @@ class GitSkill(BaseSkill):
             "GIT_DIFF": "diff",
             "GIT_LOG": "log",
             "GIT_COMMIT": "commit",
+            "GIT_ADD_COMMIT": "add_commit",
             "GIT_CHECKOUT": "checkout",
         }.get(intent, "status")
 
@@ -76,6 +77,8 @@ class GitSkill(BaseSkill):
             return self._log(cwd, args.get("limit", 10))
         if action == "commit":
             return self._commit(cwd, args.get("message", ""))
+        if action == "add_commit":
+            return self._add_commit(cwd, args.get("message", ""))
         if action == "checkout":
             return self._checkout(cwd, args.get("branch", ""))
         return SkillResult(success=False, message=f"Unknown git action '{action}'.", use_llm=False)
@@ -130,6 +133,22 @@ class GitSkill(BaseSkill):
             return SkillResult(success=False, message="No commit message provided. Usage: commit with message '...'", use_llm=False)
         if not confirm_action(f"git commit -m \"{message}\""):
             return SkillResult(success=False, message="Cancelled — commit was not created.", use_llm=False)
+        code, out, err = _git(["commit", "-m", message], cwd=cwd)
+        if code != 0:
+            return SkillResult(success=False, message=f"git commit failed: {err.strip()}", use_llm=False)
+        return SkillResult(success=True, message=f"Committed:\n{out.strip()}", use_llm=False)
+
+    def _add_commit(self, cwd: str | None, message: str) -> SkillResult:
+        """Stage all changes + commit, behind one confirmation."""
+        if not message:
+            return SkillResult(success=False, message="No commit message provided. Usage: git add and commit: <message>", use_llm=False)
+        if not confirm_action(f"git add -A && git commit -m \"{message}\""):
+            return SkillResult(success=False, message="Cancelled — commit was not created.", use_llm=False)
+
+        code, out, err = _git(["add", "-A"], cwd=cwd)
+        if code != 0:
+            return SkillResult(success=False, message=f"git add failed: {err.strip()}", use_llm=False)
+
         code, out, err = _git(["commit", "-m", message], cwd=cwd)
         if code != 0:
             return SkillResult(success=False, message=f"git commit failed: {err.strip()}", use_llm=False)

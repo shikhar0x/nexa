@@ -135,6 +135,17 @@ class IntentRouter(BaseIntentClassifier):
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 
+        # ── 2c. Build-Log / Error Analysis ──────────────
+        if _match_any(("explain this error", "explain the error", "explain the build error", "what does this error mean", "why did the build fail", "why did the test fail", "explain the traceback", "what went wrong", "explain this log", "explain the log", "what does this log mean", "error in", "read the log", "show me the error"), text):
+            import re as _re5
+            log_path = ""
+            m = _re5.search(r"['\"]?((?:~?/|home/|\./)[^'\"]+)['\"]?", user_input)
+            if m:
+                log_path = m.group(1).strip()
+            res = IntentResult(intent_name="BUILD_LOG", args={"path": log_path})
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
         # ── 2b. Git Queries (BEFORE shell commands) ────────────
         if not text.startswith(("run ", "execute ", "run command ")):
             if _match_any(("git status", "repo status", "repo clean", "repo dirty", "is my repo", "working tree", "uncommitted"), text) or ("what branch" in text) or ("which branch" in text):
@@ -151,6 +162,23 @@ class IntentRouter(BaseIntentClassifier):
                 return res
             if _match_any(("git log", "recent commits", "commit history", "last commits", "recent history"), text):
                 res = IntentResult(intent_name="GIT_LOG")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+            if _match_any(("git add and commit", "add and commit", "stage and commit", "git add commit", "git commit all"), text):
+                # Extract message with prefix-stripping
+                msg = text
+                prefixes = ("git add and commit", "add and commit", "stage and commit",
+                            "git add commit", "git commit all", "git add", "commit")
+                changed = True
+                while changed:
+                    changed = False
+                    for prefix in prefixes:
+                        if msg.startswith(prefix):
+                            msg = msg[len(prefix):].lstrip(" :\"'")
+                            changed = True
+                            break
+                msg = msg.strip().strip("\"'")
+                res = IntentResult(intent_name="GIT_ADD_COMMIT", args={"message": msg})
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
             if _match_any(("commit ", "git commit"), text):
