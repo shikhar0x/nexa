@@ -135,6 +135,43 @@ class IntentRouter(BaseIntentClassifier):
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 
+        # ── 2b. Git Queries (BEFORE shell commands) ────────────
+        if not text.startswith(("run ", "execute ", "run command ")):
+            if _match_any(("git status", "repo status", "repo clean", "repo dirty", "is my repo", "working tree", "uncommitted"), text) or ("what branch" in text) or ("which branch" in text):
+                res = IntentResult(intent_name="GIT_STATUS")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+            if _match_any(("git branch", "list branches", "list all branches"), text):
+                res = IntentResult(intent_name="GIT_BRANCH")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+            if _match_any(("git diff", "show changes", "what changed", "uncommitted changes", "what did i change"), text):
+                res = IntentResult(intent_name="GIT_DIFF")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+            if _match_any(("git log", "recent commits", "commit history", "last commits", "recent history"), text):
+                res = IntentResult(intent_name="GIT_LOG")
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+            if _match_any(("commit ", "git commit"), text):
+                import re as _re3
+                msg = ""
+                m = _re3.search(r"(?:with message|message|commit)\s*['\"]?([^'\"]+)['\"]?$", text)
+                if m:
+                    msg = m.group(1).strip()
+                res = IntentResult(intent_name="GIT_COMMIT", args={"message": msg})
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+            if _match_any(("git checkout", "switch to branch", "switch branch", "checkout branch"), text):
+                import re as _re4
+                br = ""
+                m = _re4.search(r"(?:checkout|switch to)\s+(?:branch\s+)?['\"]?([a-zA-Z0-9_\-/]+)['\"]?", text)
+                if m:
+                    br = m.group(1).strip()
+                res = IntentResult(intent_name="GIT_CHECKOUT", args={"branch": br})
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
+
         # ── 3. Shell Command Priority (Check BEFORE semantic status/file intents) ─
         run_res = self._detect_run_command(text, user_input)
         if run_res:

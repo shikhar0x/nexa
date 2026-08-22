@@ -111,6 +111,10 @@ class HybridIntentClassifier(BaseIntentClassifier):
     def classify(self, user_input: str) -> IntentResult:
         # 1. Deterministic keyword router always runs first
         result = self.router.classify(user_input)
+        # Git intents (GIT_STATUS/LOG/DIFF/...) are deterministic router
+        # results — always pass through, never LLM-classified or rejected.
+        if result.intent_name.startswith("GIT_"):
+            return result
         if result.intent_name != "GENERAL" or not self.fallback_enabled:
             return result
 

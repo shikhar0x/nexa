@@ -80,6 +80,11 @@ CAPABILITY_INDEX: list[dict] = [
         "examples": ["summarize what you know about me"],
     },
     {
+        "name": "GIT_STATUS",
+        "description": "git repository status, current branch, uncommitted changes, clean/dirty",
+        "examples": ["what branch am i on?", "is my repo clean?", "show uncommitted changes"],
+    },
+    {
         "name": "GENERAL",
         "description": "everything else: casual chat, opinions, knowledge questions",
         "examples": ["tell me a joke", "what is 2+2?"],

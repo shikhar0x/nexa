@@ -15,6 +15,7 @@ from skills.process_info import ProcessInfoSkill
 from skills.directory_listing import DirectoryListingSkill
 from skills.time_date import TimeDateSkill
 from skills.screenshot import ScreenshotSkill
+from skills.git import GitSkill
 from skills.unsupported import UnsupportedCapabilitySkill
 from skills.file_search import FileSearchSkill, FileContentSearchSkill
 from skills.file_reader import FileReaderSkill
@@ -78,6 +79,12 @@ class Dispatcher:
         self.registry.register(DirectoryListingSkill())
         self.registry.register(TimeDateSkill())
         self.registry.register(ScreenshotSkill())
+        self.registry.register(GitSkill())
+        # Git intents map to the GitSkill (not memory!)
+        git_skill = self.registry.get("GIT")
+        for git_intent in ("GIT_STATUS", "GIT_BRANCH", "GIT_DIFF", "GIT_LOG", "GIT_COMMIT", "GIT_CHECKOUT"):
+            self.registry.register_alias(git_intent, git_skill)
+
         self.registry.register(UnsupportedCapabilitySkill())
         self.registry.register(FileSearchSkill())
         self.registry.register(FileContentSearchSkill())
