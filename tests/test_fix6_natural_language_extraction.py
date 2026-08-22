@@ -64,7 +64,7 @@ class TestFix6NaturalLanguageExtraction(unittest.TestCase):
         # Test FileReaderSkill execution with extracted search_path
         skill = FileReaderSkill()
         context = ConversationContext(user_input=prompt)
-        # Patch PyPDF2 reader to return dummy text for test report.pdf
+        # Patch pypdf reader to return dummy text for test report.pdf
         from unittest.mock import patch
         with patch.object(skill, "_read_pdf", return_value="Extracted PDF text content"):
             skill_res = skill.execute({"path": "report.pdf", "search_path": str(self.dir_downloads)}, context)
