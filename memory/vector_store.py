@@ -78,9 +78,17 @@ def sync_memory() -> int:
 
 
 def search_memory(query: str, top_k: int = 3) -> list[str]:
-    col = get_collection()
-    results = col.query(
-        query_texts=[query],
-        n_results=top_k
-    )
+    try:
+        col = get_collection()
+        results = col.query(
+            query_texts=[query],
+            n_results=top_k
+        )
+    except Exception as exc:
+        # Degrade gracefully (same policy as sync_memory): if the embedding
+        # backend is unavailable (offline, model not yet downloaded, ChromaDB
+        # error), the turn proceeds with no vector memory context instead of
+        # crashing the whole request.
+        logger.warning(f"ChromaDB query failed, no memory context this turn: {exc}")
+        return []
     return results["documents"][0] if results["documents"] else []

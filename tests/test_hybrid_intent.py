@@ -45,7 +45,9 @@ class TestHybridIntentClassifier(unittest.TestCase):
             self.assertEqual(res.intent_name, "GENERAL")
 
         with patch("ollama.chat", return_value=_fake_response(json.dumps({"intent": "MEMORY_CLEAR"}))):
-            res = self.classifier.classify("erase everything you know")
+            # NOTE: must use a phrasing the keyword router misses (falls back to
+            # GENERAL first) so the LLM-whitelist rejection is what gets tested.
+            res = self.classifier.classify("wipe out everything stored about me")
             self.assertEqual(res.intent_name, "GENERAL")
 
     def test_llm_suggesting_general_stays_general(self):

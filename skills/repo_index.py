@@ -44,7 +44,8 @@ class RepoIndexSkill(BaseSkill):
     capability = Capability(
         name="repo_index",
         description="Summarize a project: purpose, structure, entry point, tech stack",
-        supports=["repo", "project", "codebase", "what does this project", "entry point"],
+        supports=["what does this project", "what does this repo", "codebase",
+                  "repo structure", "project structure", "entry point", "tech stack"],
         requires_confirmation=False,
         deterministic=False,
     )
@@ -69,7 +70,10 @@ class RepoIndexSkill(BaseSkill):
             exts[ext] = exts.get(ext, 0) + 1
         top_exts = sorted(exts.items(), key=lambda x: -x[1])[:8]
 
-        entry = next((f for f in files if os.path.basename(f) in ENTRY_HINTS), files[0])
+        entry = next(
+            (hint for hint in ENTRY_HINTS if any(os.path.basename(f) == hint for f in files)),
+            files[0],
+        )
 
         readme_path = None
         for rn in README_NAMES:

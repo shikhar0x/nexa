@@ -85,6 +85,11 @@ CAPABILITY_INDEX: list[dict] = [
         "examples": ["what branch am i on?", "is my repo clean?", "show uncommitted changes"],
     },
     {
+        "name": "REPO_INDEX",
+        "description": "explain or summarize a code project/repository: what it does, structure, entry point, tech stack",
+        "examples": ["what does this project do?", "explain this codebase", "summarize this repo", "index this project"],
+    },
+    {
         "name": "GENERAL",
         "description": "everything else: casual chat, opinions, knowledge questions",
         "examples": ["tell me a joke", "what is 2+2?"],
