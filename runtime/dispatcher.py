@@ -91,7 +91,7 @@ class Dispatcher:
 
         # Git intents map to the GitSkill (not memory!)
         git_skill = self.registry.get("GIT")
-        for git_intent in ("GIT_STATUS", "GIT_BRANCH", "GIT_DIFF", "GIT_LOG", "GIT_COMMIT", "GIT_ADD_COMMIT", "GIT_CHECKOUT"):
+        for git_intent in ("GIT_STATUS", "GIT_BRANCH", "GIT_DIFF", "GIT_LOG", "GIT_ADD", "GIT_COMMIT", "GIT_ADD_COMMIT", "GIT_CHECKOUT"):
             self.registry.register_alias(git_intent, git_skill)
 
         self.registry.register(UnsupportedCapabilitySkill())

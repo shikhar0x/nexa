@@ -208,6 +208,19 @@ class IntentRouter(BaseIntentClassifier):
                 res = IntentResult(intent_name="GIT_ADD_COMMIT", args={"message": msg})
                 logger.debug(f"Classified '{user_input}' -> {res}")
                 return res
+            # Stage-only add. Placed AFTER add-and-commit so "git add and commit"
+            # keeps winning; the trailing regex catches "add <paths> to git".
+            if _match_any(("git add", "add to git", "git stage", "stage these files", "stage this file",
+                           "stage the files", "stage my changes", "track these files", "track this file",
+                           "add everything to git", "add all my changes"), text) \
+                    or re.search(r"\badd\b[\w\s,'\"|.+-]*?\bto git\b", text):
+                add_paths = re.findall(
+                    r"(?:~?/[^\s,'\"|]+|\./[^\s,'\"|]+|[a-zA-Z0-9_\-]+(?:/[a-zA-Z0-9_.\-]+)+|[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)",
+                    user_input,
+                )
+                res = IntentResult(intent_name="GIT_ADD", args={"paths": add_paths})
+                logger.debug(f"Classified '{user_input}' -> {res}")
+                return res
             if _match_any(("commit ", "git commit"), text):
                 import re as _re3
                 msg = ""
