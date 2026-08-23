@@ -6,6 +6,7 @@ from skills.registry import SkillRegistry
 from skills.system_status import SystemStatusSkill
 from skills.file_search import FileSearchSkill
 from skills.notification import ReminderSkill
+from skills.screenshot import ScreenshotSkill
 
 
 class TestSkills(unittest.TestCase):
@@ -46,6 +47,22 @@ class TestSkills(unittest.TestCase):
         self.assertEqual(result.data.get("delay_seconds"), 10)
         self.assertFalse(result.use_llm)
         self.assertFalse(result.allow_interpretation)
+
+    @patch("skills.screenshot.confirm_action", return_value=True)
+    @patch("skills.screenshot.subprocess.run")
+    @patch("skills.screenshot.os.path.exists", return_value=True)
+    @patch("skills.screenshot.shutil.which", return_value="/usr/bin/screencapture")
+    @patch("sys.platform", "darwin")
+    def test_screenshot_skill_macos(self, mock_which, mock_exists, mock_run, mock_confirm):
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stderr = ""
+        
+        skill = ScreenshotSkill()
+        result = skill.execute({}, self.context)
+        self.assertIsInstance(result, SkillResult)
+        self.assertTrue(result.success)
+        self.assertEqual(result.data.get("tool"), "screencapture")
+        self.assertFalse(result.use_llm)
 
 
 if __name__ == "__main__":
