@@ -259,5 +259,14 @@
       "path": "/tmp"
     },
     "notes": "Project summary with explicit absolute path"
+  },
+  {
+    "input": "explain the error in /definitely/not/here.log",
+    "expected_intent": "BUILD_LOG",
+    "expected_skill": "BUILD_LOG",
+    "expected_args_subset": {
+      "path": "/definitely/not/here.log"
+    },
+    "notes": "Build-log analysis with explicit (missing) path — deterministic fail path, no side effects"
   }
 ]

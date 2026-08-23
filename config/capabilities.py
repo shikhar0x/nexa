@@ -90,6 +90,11 @@ CAPABILITY_INDEX: list[dict] = [
         "examples": ["what does this project do?", "explain this codebase", "summarize this repo", "index this project"],
     },
     {
+        "name": "FILE_WATCH",
+        "description": "watch a folder or repo for file changes with desktop notifications; stop or list active watches",
+        "examples": ["watch this folder", "keep an eye on this repo", "notify me when files change", "stop watching"],
+    },
+    {
         "name": "GENERAL",
         "description": "everything else: casual chat, opinions, knowledge questions",
         "examples": ["tell me a joke", "what is 2+2?"],

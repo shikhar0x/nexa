@@ -8,6 +8,7 @@ from runtime.renderer import ConsoleRenderer
 from skills.base import BaseSkill, SkillResult
 from skills.build_log import BuildLogSkill
 from skills.repo_index import RepoIndexSkill
+from skills.file_watch import FileWatchSkill
 from skills.registry import SkillRegistry
 from skills.resolver import CapabilityResolver
 from skills.system_status import SystemStatusSkill
@@ -84,6 +85,7 @@ class Dispatcher:
         self.registry.register(GitSkill())
         self.registry.register(BuildLogSkill())
         self.registry.register(RepoIndexSkill())
+        self.registry.register(FileWatchSkill())
         # Repo-index intents map to RepoIndexSkill
         repo_skill = self.registry.get("REPO_INDEX")
         for ri_intent in ("REPO_INDEX",):

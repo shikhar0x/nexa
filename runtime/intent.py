@@ -248,6 +248,37 @@ class IntentRouter(BaseIntentClassifier):
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 
+        # ── 2e. File Watching (developer mode) ──────────────
+        if _match_any(("stop watching", "stop watch", "unwatch"), text):
+            m = re.search(r"['\"]?((?:~?/|home/|\./)[^'\"]+)['\"]?", user_input)
+            res = IntentResult(
+                intent_name="FILE_WATCH",
+                args={"action": "stop", "path": m.group(1).strip() if m else ""},
+            )
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+        if _match_any(("what are you watching", "watch status", "list watches",
+                       "list watched", "watched folders", "watching status"), text):
+            res = IntentResult(intent_name="FILE_WATCH", args={"action": "status", "path": ""})
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+        if _match_any(("watch this folder", "watch this repo", "watch this project",
+                       "watch this directory", "watch this codebase", "watch the repo",
+                       "watch the folder", "watch the project", "watch my repo",
+                       "watch my project", "watch my folder", "start watching",
+                       "keep an eye on this repo", "keep an eye on this folder",
+                       "keep an eye on my repo", "keep an eye on my project",
+                       "notify me when files change", "notify me when a file changes",
+                       "notify me on file changes", "watch for changes",
+                       "watch for file changes"), text):
+            m = re.search(r"['\"]?((?:~?/|home/|\./)[^'\"]+)['\"]?", user_input)
+            res = IntentResult(
+                intent_name="FILE_WATCH",
+                args={"action": "start", "path": m.group(1).strip() if m else ""},
+            )
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
         # ── 3. Shell Command Priority (Check BEFORE semantic status/file intents) ─
         run_res = self._detect_run_command(text, user_input)
         if run_res:
@@ -565,6 +596,16 @@ class IntentRouter(BaseIntentClassifier):
         if intent_name == "REPO_INDEX":
             m = re.search(r"['\"]?((?:~?/|home/|\./)[^'\"]+)['\"]?", user_input)
             return {"path": m.group(1).strip().strip("'\"") if m else ""}
+
+        if intent_name == "FILE_WATCH":
+            m = re.search(r"['\"]?((?:~?/|home/|\./)[^'\"]+)['\"]?", user_input)
+            path = m.group(1).strip() if m else ""
+            if _match_any(("stop watching", "stop watch", "unwatch"), text):
+                return {"action": "stop", "path": path}
+            if _match_any(("what are you watching", "watch status", "list watches",
+                           "list watched", "watched folders", "watching status"), text):
+                return {"action": "status", "path": path}
+            return {"action": "start", "path": path}
 
         # SYSTEM_INFO / PROCESS_INFO / MEMORY_STATS / MEMORY_LIST take no args
         return {}

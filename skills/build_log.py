@@ -44,7 +44,8 @@ class BuildLogSkill(BaseSkill):
     capability = Capability(
         name="build_log",
         description="Explain build errors, test failures, and log file contents",
-        supports=["error", "log", "build", "test", "traceback", "compile", "failed"],
+        supports=["explain this error", "explain the error", "build log", "why did the build fail",
+                  "why did the test fail", "traceback", "compile error"],
         requires_confirmation=False,
         deterministic=False,
     )
