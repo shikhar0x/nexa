@@ -325,3 +325,37 @@ class MacOSAdapter(BaseOSAdapter):
                 return {"error": f"Unknown power action: {action}"}
         except Exception as e:
             return {"error": str(e)}
+
+    # ── Window / Desktop Context ─────────────────────────────────
+
+    def get_active_window(self) -> dict:
+        """Return the frontmost app's name and front-window title via AppleScript."""
+        try:
+            app_res = subprocess.run(
+                ["osascript", "-e",
+                 'tell application "System Events" to get name of '
+                 'first application process whose frontmost is true'],
+                capture_output=True, text=True, timeout=8,
+            )
+            if app_res.returncode != 0 or not app_res.stdout.strip():
+                return {
+                    "error": app_res.stderr.strip() or "Could not determine the frontmost application",
+                    "hint": "Grant accessibility/Automation permission to the terminal app in "
+                            "System Settings → Privacy & Security.",
+                }
+            app = app_res.stdout.strip()
+            title = ""
+            try:
+                title_res = subprocess.run(
+                    ["osascript", "-e",
+                     'tell application "System Events" to tell (first application process '
+                     'whose frontmost is true) to get name of front window'],
+                    capture_output=True, text=True, timeout=8,
+                )
+                if title_res.returncode == 0:
+                    title = title_res.stdout.strip()
+            except Exception:
+                title = ""
+            return {"app": app, "title": title, "source": "applescript"}
+        except Exception as e:
+            return {"error": str(e)}

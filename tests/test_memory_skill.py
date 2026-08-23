@@ -12,6 +12,8 @@ from config.settings import settings
 
 class TestMemorySkill(unittest.TestCase):
     def setUp(self):
+        self._orig_db_path = settings.db_path
+        self._orig_chroma_path = settings.chroma_path
         settings.db_path = "test_memory_skill.db"
         settings.chroma_path = ":memory:"
         reset_vector_store()
@@ -23,8 +25,9 @@ class TestMemorySkill(unittest.TestCase):
         reset_vector_store()
         if os.path.exists(settings.db_path):
             os.remove(settings.db_path)
-        settings.db_path = "nexa.db"
-        settings.chroma_path = "chroma_data"
+        # Restore the ORIGINAL paths (test-isolated under pytest), never literals.
+        settings.db_path = self._orig_db_path
+        settings.chroma_path = self._orig_chroma_path
         reset_vector_store()
 
     def test_memory_stats(self):

@@ -18,6 +18,8 @@ from skills.process_info import ProcessInfoSkill
 from skills.directory_listing import DirectoryListingSkill
 from skills.time_date import TimeDateSkill
 from skills.screenshot import ScreenshotSkill
+from skills.active_window import ActiveWindowSkill
+from skills.work_context import WorkContextSkill
 from skills.git import GitSkill
 from skills.unsupported import UnsupportedCapabilitySkill
 from skills.file_search import FileSearchSkill, FileContentSearchSkill
@@ -82,6 +84,8 @@ class Dispatcher:
         self.registry.register(DirectoryListingSkill())
         self.registry.register(TimeDateSkill())
         self.registry.register(ScreenshotSkill())
+        self.registry.register(ActiveWindowSkill())
+        self.registry.register(WorkContextSkill())
         self.registry.register(GitSkill())
         self.registry.register(BuildLogSkill())
         self.registry.register(RepoIndexSkill())

@@ -95,6 +95,17 @@ CAPABILITY_INDEX: list[dict] = [
         "examples": ["watch this folder", "keep an eye on this repo", "notify me when files change", "stop watching"],
     },
     {
+        "name": "ACTIVE_WINDOW",
+        "description": "which application window currently has focus on the desktop",
+        "examples": ["what app am i using?", "which window is focused?", "what's the active window?"],
+    },
+    {
+        "name": "WORK_CONTEXT",
+        "description": "interpret what the user is currently working on or looking at (richer than just naming the active window)",
+        "examples": ["what am i working on?", "what am i doing right now?", "what's in front of me?",
+                     "what project am i working on?", "what's the current project?"],
+    },
+    {
         "name": "GENERAL",
         "description": "everything else: casual chat, opinions, knowledge questions",
         "examples": ["tell me a joke", "what is 2+2?"],

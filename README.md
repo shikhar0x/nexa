@@ -81,10 +81,11 @@ nexa/
 ├── logs/                       # Application logs
 └── tests/                      # 180+ automated tests + JSON regression fixtures
 
-How Routing Works
+```
 
-text
+## How Routing Works
 
+```text
 User prompt
     │
     ▼
@@ -100,137 +101,144 @@ User prompt
     │  suggestion validated against capability-index whitelist
     │  safe & valid ──────► skill executes (arguments extracted deterministically)
     │  invalid / unsafe ──► general chat
+```
 
-Destructive intents are never LLM-suggestable and always require confirm_action. Arguments are extracted deterministically with regex and the path resolver, never by the model—so it can route requests but cannot fabricate paths, levels, or commands. Unseen phrasings work because the fallback maps requests against the capability index’s descriptions and examples.
-Prerequisites
+Destructive intents are never LLM-suggestable and always require `confirm_action`. Arguments are extracted deterministically with regex and the path resolver, never by the model—so it can route requests but cannot fabricate paths, levels, or commands. Unseen phrasings work because the fallback maps requests against the capability index’s descriptions and examples.
 
-    Python 3.11+
+## Prerequisites
 
-    Ollama, with the default model:
+- Python 3.11+
+- Ollama, with the default model:
 
-    Bash
+  ```bash
+  ollama pull phi4-mini
+  ```
 
-    ollama pull phi4-mini
+- ripgrep (optional, for fast file-content search):
 
-    ripgrep (optional, for fast file-content search):
-
-    Bash
-
-    sudo apt install ripgrep
+  ```bash
+  sudo apt install ripgrep
+  ```
 
 To avoid the initial model-load delay, keep Ollama warm in RAM:
 
-Bash
-
+```bash
 OLLAMA_KEEP_ALIVE=-1 ollama serve
+```
 
-For a permanent systemd configuration, run sudo systemctl edit ollama and add Environment="OLLAMA_KEEP_ALIVE=-1" under [Service].
-Installation & Setup
+For a permanent systemd configuration, run `sudo systemctl edit ollama` and add `Environment="OLLAMA_KEEP_ALIVE=-1"` under `[Service]`.
 
-Bash
+## Installation & Setup
 
+```bash
 cd nexa
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
 
-Usage
+## Usage
 
-Bash
-
+```bash
 python main.py
+```
 
-Example Prompts
-System Monitoring (instant, no model)
+## Example Prompts
 
-    “how's my battery?”
-    “what's my CPU usage like?”
-    “let's start with my pc health.”
-    “show os version” or “what's my ip?”
-    “what's eating my ram?” or “why is my laptop slow?”
+### System Monitoring
 
-Developer Mode
+- “how's my battery?”
+- “what's my CPU usage like?”
+- “let's start with my pc health.”
+- “show os version” or “what's my ip?”
+- “what's eating my ram?” or “why is my laptop slow?”
 
-    “is my repo clean?”, “what branch am I on?”, “git diff”, or “recent commits”
-    “add these files to git” or “git add skills/repo_index.py” (staging is confirmation-gated)
-    “git add and commit: wire up routing” (stage + commit behind one confirmation)
-    “what does this project do?” or “explain this codebase in ~/projects/foo”
-    “why did the build fail?” or “explain the error in build.log”
-    “watch this repo” → desktop notification on file changes; “what are you watching”; “stop watching”
+### Developer Mode
 
-Document Reading & Summarization
+- “is my repo clean?”, “what branch am I on?”, “git diff”, or “recent commits”
+- “add these files to git” or “git add skills/repo_index.py” (staging is confirmation-gated)
+- “git add and commit: wire up routing” (stage + commit behind one confirmation)
+- “what does this project do?” or “explain this codebase in ~/projects/foo”
+- “why did the build fail?” or “explain the error in build.log”
+- “watch this repo” → desktop notification on file changes; “what are you watching”; “stop watching”
 
-    “read report.pdf”
-    “summarize report.pdf”
-    “what does this file say”
-    “search inside report.pdf for executive summary”
-    “which files contain sql”
+### Document Reading & Summarization
 
-Deterministic Memory Operations
+- “read report.pdf”
+- “summarize report.pdf”
+- “what does this file say”
+- “search inside report.pdf for executive summary”
+- “which files contain sql”
 
-    “show memory stats” or “what do you remember”
-    “export memory”
-    “search memory for project goals”
-    “forget color”
-    “clear memory” or “erase all of your memory” (always confirmation-gated)
-    “summarize what you know about Python”
+### Deterministic Memory Operations
 
-File & Content Search
+- “show memory stats” or “what do you remember”
+- “export memory”
+- “search memory for project goals”
+- “forget color”
+- “clear memory” or “erase all of your memory” (always confirmation-gated)
+- “summarize what you know about Python”
 
-    “find DBMS files” or “do you have any files about sql”
-    “where is my report”
-    “what's in my downloads”
+### File & Content Search
 
-Reminders & Notifications
+- “find DBMS files” or “do you have any files about sql”
+- “where is my report”
+- “what's in my downloads”
 
-    “remind me in 30 seconds to take a break”
-    “ping me in 5 minutes to stretch”
+### Reminders & Notifications
 
-Safe Actions (always request confirmation)
+- “remind me in 30 seconds to take a break”
+- “ping me in 5 minutes to stretch”
 
-    “open presentation.pdf”
-    “run command ls -la”
-    “set brightness to 80%”, “make it louder”, or “kill the wifi”
-    “shut it down” or “suspend my pc”
+### Safe Actions
 
-Chat & Self-Knowledge
+- “open presentation.pdf”
+- “run command ls -la”
+- “set brightness to 80%”, “make it louder”, or “kill the wifi”
+- “shut it down” or “suspend my pc”
 
-    “hey there!”, “thanks”, or “tell me a joke”
-    “what can you do?” or “what are your skills?”
+### Chat & Self-Knowledge
 
-Configuration
+- “hey there!”, “thanks”, or “tell me a joke”
+- “what can you do?” or “what are your skills?”
 
-The main runtime knobs are in config/settings.py.
-Setting	Default	Purpose
-llm_model	phi4-mini	The single local model; llama3.2:3b also works well.
-temperature	0.2	Low randomness keeps answers grounded in real data.
-num_ctx	4096	Context window tuned for CPU laptops.
-history_limit	6	Recent conversation turns sent to the model.
-memory_context_max_chars	1200	Maximum injected memory-context length.
-memory_min_messages_for_search	20	Below this, vector search is skipped.
-memory_context_recent_turns	2	Recent turns used when vector search is skipped.
-classification_max_tokens	64	Intent-classification JSON response cap.
-answer_max_tokens	200	Conversational answer cap (keeps the model concise).
-deterministic_system_report	True	Instant system/OS/network reports; False enables LLM interpretation.
-debug	NEXA_DEBUG	Enables per-turn [DEBUG TRACE] instrumentation.
-Running Unit Tests
+## Configuration
 
-Bash
+The main runtime knobs are in `config/settings.py`.
 
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `llm_model` | `phi4-mini` | The single local model; `llama3.2:3b` also works well. |
+| `temperature` | `0.2` | Low randomness keeps answers grounded in real data. |
+| `num_ctx` | `4096` | Context window tuned for CPU laptops. |
+| `history_limit` | `6` | Recent conversation turns sent to the model. |
+| `memory_context_max_chars` | `1200` | Maximum injected memory-context length. |
+| `memory_min_messages_for_search` | `20` | Below this, vector search is skipped. |
+| `memory_context_recent_turns` | `2` | Recent turns used when vector search is skipped. |
+| `classification_max_tokens` | `64` | Intent-classification JSON response cap. |
+| `answer_max_tokens` | `200` | Conversational answer cap (keeps the model concise). |
+| `deterministic_system_report` | `True` | Instant system/OS/network reports; `False` enables LLM interpretation. |
+| `debug` | `NEXA_DEBUG` | Enables per-turn `[DEBUG TRACE]` instrumentation. |
+
+## Running Unit Tests
+
+```bash
 python -m pytest tests/ -q
 # or: python -m unittest discover -s tests -v
+```
 
-Key suites: test_intent, test_hybrid_intent, test_prompt_regressions (fixtures in tests/prompts.json), test_pending_action, test_filename_resolution, plus the Developer Mode suites test_repo_index, test_git_add, test_build_log, and test_file_watch.
-Roadmap
+Key suites: `test_intent`, `test_hybrid_intent`, `test_prompt_regressions` (fixtures in `tests/prompts.json`), `test_pending_action`, `test_filename_resolution`, plus the Developer Mode suites `test_repo_index`, `test_git_add`, `test_build_log`, and `test_file_watch`.
 
-    Phase 1 — Foundation: SQLite conversation log, ChromaDB vector-memory persistence, and CQRS MemorySkill.
-    Phase 2 — Desktop Integration & Runtime Stabilization: System monitoring, document reading/search, token streaming, notifications, safe actions, workspace state, deterministic failure recovery, and prompt regression tests.
-    Speed & Comprehension Pass: Hybrid routing, small-talk fast path, lazy ChromaDB embeddings, deterministic system reports, and CPU-oriented prompt-size tuning.
-    Phase 3 — Developer Mode: Git integration (status/diff/log/stage/commit/checkout, mutation-gated), repository indexing, in-session file watching with desktop notifications, and build-log analysis.
-    Phase 4 — Vision: OCR, active-window context, and live screen understanding.
-    Phase 5 — Voice Interface: STT (Whisper), TTS (Piper), and wake-word detection.
-    Phase 6 — Intelligence Layer: Habit learning and proactive context prediction.
+## Roadmap
 
-License
+- Phase 1 — Foundation: SQLite conversation log, ChromaDB vector-memory persistence, and CQRS MemorySkill.
+- Phase 2 — Desktop Integration & Runtime Stabilization: System monitoring, document reading/search, token streaming, notifications, safe actions, workspace state, deterministic failure recovery, and prompt regression tests.
+- Speed & Comprehension Pass: Hybrid routing, small-talk fast path, lazy ChromaDB embeddings, deterministic system reports, and CPU-oriented prompt-size tuning.
+- Phase 3 — Developer Mode: Git integration (status/diff/log/stage/commit/checkout, mutation-gated), repository indexing, in-session file watching with desktop notifications, and build-log analysis.
+- Phase 4 — Vision: OCR, active-window context, and live screen understanding.
+- Phase 5 — Voice Interface: STT (Whisper), TTS (Piper), and wake-word detection.
+- Phase 6 — Intelligence Layer: Habit learning and proactive context prediction.
+
+## License
 
 This project is licensed under the terms of the MIT License.

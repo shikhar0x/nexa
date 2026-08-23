@@ -9,6 +9,12 @@ from config.constants import SYSTEM_PROMPT, GROUNDED_INTERPRETATION_PROMPT, INTE
 from config.logger import logger
 
 
+def _is_grounded_turn(context: ConversationContext) -> bool:
+    """True when a skill marked this turn as strictly grounded in fresh tool
+    data (allow_interpretation). Such turns ignore conversation memory."""
+    return bool(context.skill_result and context.skill_result.allow_interpretation)
+
+
 class LLMEngine:
     """LLM Interface accepting ConversationContext to generate and stream natural responses."""
 
@@ -45,7 +51,12 @@ class LLMEngine:
         logger.debug(f"Streaming prompt to Ollama model '{self.model_name}'...")
 
         messages = [{"role": "system", "content": prompt}]
-        if context.recent_history:
+        # Grounded tool turns must be independent of prior conversation —
+        # GROUNDED directive 4 says so, and replaying history actively breaks
+        # them: a stored wrong answer to the SAME question is regurgitated
+        # verbatim by small models and then re-stored, an echo loop
+        # (observed live with "The content provided does not specify...").
+        if context.recent_history and not _is_grounded_turn(context):
             for item in context.recent_history:
                 messages.append({"role": item["role"], "content": item["content"]})
         messages.append({"role": "user", "content": context.user_input})
@@ -110,7 +121,10 @@ class LLMEngine:
         if context.skill_result and context.skill_result.allow_interpretation:
             prompt += f"\n\n{GROUNDED_INTERPRETATION_PROMPT}"
 
-        if context.memory_context:
+        # Grounded turns: no retrieved-memory block either — it is never part
+        # of the evidence for a fresh tool measurement and only invites
+        # hallucinated echoes of earlier (possibly wrong) answers.
+        if context.memory_context and not _is_grounded_turn(context):
             prompt += f"\n\n{context.memory_context}"
 
         # TARGETED FILE-READ INSTRUCTION: when the user asked about a file

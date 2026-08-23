@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 
 
@@ -6,8 +6,9 @@ import os
 class Settings:
     """Global configuration settings for Nexa."""
     llm_model: str = "phi4-mini"
-    db_path: str = "nexa.db"
-    chroma_path: str = "chroma_data"
+    # Storage paths are env-overridable so test runs never touch real memory.
+    db_path: str = field(default_factory=lambda: os.getenv("NEXA_DB_PATH", "nexa.db"))
+    chroma_path: str = field(default_factory=lambda: os.getenv("NEXA_CHROMA_PATH", "chroma_data"))
     search_max_seconds: float = 5.0
     search_max_results: int = 20
     log_file: str = os.path.join("logs", "nexa.log")

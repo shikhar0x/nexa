@@ -268,5 +268,23 @@
       "path": "/definitely/not/here.log"
     },
     "notes": "Build-log analysis with explicit (missing) path — deterministic fail path, no side effects"
+  },
+  {
+    "input": "what app am i using right now",
+    "expected_intent": "ACTIVE_WINDOW",
+    "expected_skill": "ACTIVE_WINDOW",
+    "notes": "Active-window context query; read-only and degrades gracefully on headless/Wayland systems"
+  },
+  {
+    "input": "what am i working on right now",
+    "expected_intent": "WORK_CONTEXT",
+    "expected_skill": "WORK_CONTEXT",
+    "notes": "Work-context query (LLM-phrased tier); read-only, degrades gracefully headless"
+  },
+  {
+    "input": "what project am i working on?",
+    "expected_intent": "WORK_CONTEXT",
+    "expected_skill": "WORK_CONTEXT",
+    "notes": "Project-flavoured work-context query; must reach the window-facts skill, not GENERAL memory chat"
   }
 ]

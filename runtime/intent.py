@@ -279,6 +279,44 @@ class IntentRouter(BaseIntentClassifier):
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 
+        # ── 2f. Active Window (desktop context, read-only) ──────
+        if _match_any((
+            "active window", "focused window", "current window", "foreground window",
+            "window in focus", "what window is active", "which window is active",
+            "what window is focused", "which window is focused",
+            "what window am i", "which window am i",
+            "active app", "foreground app", "focused app", "app in focus",
+            "what app am i using", "which app am i using",
+            "what app am i in", "which app am i in",
+            "what app is focused", "which app is focused",
+            "what app has focus", "which app has focus",
+            "what is in focus", "what's in focus",
+        ), text):
+            res = IntentResult(intent_name="ACTIVE_WINDOW")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        # ── 2g. Work Context (richer "what am I doing?" → LLM-phrased) ──
+        if _match_any((
+            "what am i working on", "what am i doing right now", "what am i doing rn",
+            "what am i doing", "what am i looking at", "what am i reading",
+            "what am i editing", "what have i been doing", "what have i been working on",
+            "what's in front of me", "whats in front of me",
+            "my current activity", "current activity", "summarize what i'm doing",
+            "summarise what i'm doing", "which app am i working in",
+            "what app am i working in", "tell me what i'm doing",
+            # Project-flavoured variants of the same question — must not fall
+            # through to GENERAL memory chat (which has no window facts).
+            "what project am i working on", "which project am i working on",
+            "what project am i in", "which project am i in",
+            "what project is open", "which project is open",
+            "current project",
+            "what repo am i in", "which repo am i in",
+        ), text):
+            res = IntentResult(intent_name="WORK_CONTEXT")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
         # ── 3. Shell Command Priority (Check BEFORE semantic status/file intents) ─
         run_res = self._detect_run_command(text, user_input)
         if run_res:

@@ -73,3 +73,13 @@ class BaseOSAdapter:
     def power_action(self, action: str, delay: int = 60) -> dict:
         """Execute a power action (shutdown/restart/sleep) with optional delay in seconds."""
         raise NotImplementedError
+
+    # ── Window / Desktop Context ─────────────────────────────────
+
+    def get_active_window(self) -> dict:
+        """Return info about the currently focused window.
+
+        Success: {"app": str, "title": str, "source": str} (app/title may be empty).
+        Failure: {"error": str} plus optional "hint" for fixing it.
+        """
+        raise NotImplementedError

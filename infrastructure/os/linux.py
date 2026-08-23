@@ -1,3 +1,5 @@
+import os
+import shutil
 import subprocess
 import re as _re
 from infrastructure.os.base import BaseOSAdapter
@@ -370,3 +372,134 @@ class LinuxOSAdapter(BaseOSAdapter):
             return {"error": "shutdown/systemctl command not found"}
         except Exception as e:
             return {"error": str(e)}
+
+    # ── Window / Desktop Context ─────────────────────────────────
+
+    def get_active_window(self) -> dict:
+        """Return the focused window's app name and title.
+
+        Backend chain (first success wins):
+          0. Nexa focused-window GNOME extension (works on Wayland AND X11)
+          1. xdotool (X11 / XWayland)
+          2. xprop -root + wmctrl -l (X11)
+          3. GNOME Shell D-Bus Eval (X11, and Wayland only if unsafe-mode is on)
+        GNOME Wayland deliberately exposes no active-window API to clients, so
+        without the bundled extension we degrade to a clear error + hint.
+        """
+        # 0) Nexa focused-window GNOME Shell extension (best: Wayland-safe).
+        # The extension exports on GNOME Shell's own bus name (org.gnome.Shell),
+        # reachable without any extra well-known name.
+        if shutil.which("gdbus"):
+            try:
+                res = subprocess.run(
+                    ["gdbus", "call", "--session",
+                     "--dest", "org.gnome.Shell",
+                     "--object-path", "/org/nexa/FocusedWindow",
+                     "--method", "org.nexa.FocusedWindow.Get"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if res.returncode == 0:
+                    m = _re.search(r"^\(\s*'(.+)',?\s*\)$", (res.stdout or "").strip(), _re.DOTALL)
+                    if m:
+                        import json as _json
+                        # Undo GVariant text-format escapes for embedded quotes/backslashes.
+                        raw = m.group(1).replace("\\'", "'").replace("\\\\", "\\")
+                        try:
+                            payload = _json.loads(raw)
+                        except Exception:
+                            payload = {}
+                        if payload.get("app") or payload.get("title"):
+                            return {
+                                "app": payload.get("app", ""),
+                                "title": payload.get("title", ""),
+                                "source": "nexa-extension",
+                            }
+            except Exception as e:
+                logger.debug(f"nexa extension active-window probe failed: {e}")
+
+        # 1) xdotool
+        if shutil.which("xdotool"):
+            try:
+                title_res = subprocess.run(
+                    ["xdotool", "getactivewindow", "getwindowname"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if title_res.returncode == 0 and title_res.stdout.strip():
+                    title = title_res.stdout.strip()
+                    app = ""
+                    pid_res = subprocess.run(
+                        ["xdotool", "getactivewindow", "getwindowpid"],
+                        capture_output=True, text=True, timeout=5,
+                    )
+                    if pid_res.returncode == 0 and pid_res.stdout.strip().isdigit():
+                        try:
+                            import psutil
+                            app = psutil.Process(int(pid_res.stdout.strip())).name()
+                        except Exception:
+                            app = ""
+                    return {"app": app, "title": title, "source": "xdotool"}
+            except Exception as e:
+                logger.debug(f"xdotool active-window probe failed: {e}")
+
+        # 2) xprop -root _NET_ACTIVE_WINDOW + wmctrl -l
+        if shutil.which("xprop") and shutil.which("wmctrl"):
+            try:
+                root = subprocess.run(
+                    ["xprop", "-root", "_NET_ACTIVE_WINDOW"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                m = _re.search(r"window id # (0x[0-9a-fA-F]+)", root.stdout or "")
+                if m:
+                    win_id = m.group(1).lower()
+                    lst = subprocess.run(
+                        ["wmctrl", "-l"], capture_output=True, text=True, timeout=5,
+                    )
+                    for line in (lst.stdout or "").splitlines():
+                        # wmctrl -l line: "0x03a00007  0 hostname Window title..."
+                        parts = line.split(None, 3)
+                        if len(parts) == 4 and parts[0].lower() == win_id:
+                            return {"app": "", "title": parts[3].strip(), "source": "wmctrl"}
+            except Exception as e:
+                logger.debug(f"xprop/wmctrl active-window probe failed: {e}")
+
+        # 3) GNOME Shell D-Bus Eval
+        if shutil.which("gdbus"):
+            try:
+                js = (
+                    "const w=global.display.get_focus_window();"
+                    "w?JSON.stringify({title:w.get_title()||'',app:w.get_wm_class()||''}):''"
+                )
+                res = subprocess.run(
+                    ["gdbus", "call", "--session",
+                     "--dest", "org.gnome.Shell",
+                     "--object-path", "/org/gnome/Shell",
+                     "--method", "org.gnome.Shell.Eval", js],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if res.returncode == 0:
+                    m = _re.search(r"\(true,\s*'(\{.*\})'\s*\)", res.stdout or "", _re.DOTALL)
+                    if m:
+                        import json as _json
+                        try:
+                            payload = _json.loads(m.group(1))
+                        except Exception:
+                            payload = {}
+                        if payload.get("title"):
+                            return {
+                                "app": payload.get("app", ""),
+                                "title": payload["title"],
+                                "source": "gnome-shell",
+                            }
+            except Exception as e:
+                logger.debug(f"gnome-shell Eval active-window probe failed: {e}")
+
+        session = os.environ.get("XDG_SESSION_TYPE", "unknown")
+        if session == "wayland":
+            hint = ("GNOME Wayland hides window focus from apps by design. Fix: run "
+                    "'bash scripts/install_focused_window_extension.sh', log out/in once, "
+                    "then 'gnome-extensions enable nexa-focused-window@nexa.local'.")
+        elif not any(shutil.which(t) for t in ("xdotool", "wmctrl")):
+            hint = "Install xdotool for active-window info: sudo apt install xdotool"
+        else:
+            hint = "No active-window backend could read the focused window."
+        return {"error": "Could not determine the active window", "hint": hint, "session": session}

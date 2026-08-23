@@ -1,0 +1,8 @@
+{
+  "uuid": "nexa-focused-window@nexa.local",
+  "name": "Nexa Focused Window",
+  "description": "Exposes the focused window's app name and title over D-Bus so Nexa can answer 'what app am I using?' on Wayland. Read-only; required because Wayland hides window focus from regular apps.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "version": 2,
+  "url": "https://github.com/shikhar0x/nexa"
+}
