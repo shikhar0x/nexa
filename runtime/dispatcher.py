@@ -20,6 +20,7 @@ from skills.time_date import TimeDateSkill
 from skills.screenshot import ScreenshotSkill
 from skills.active_window import ActiveWindowSkill
 from skills.work_context import WorkContextSkill
+from skills.screen_read import ScreenReadSkill
 from skills.git import GitSkill
 from skills.unsupported import UnsupportedCapabilitySkill
 from skills.file_search import FileSearchSkill, FileContentSearchSkill
@@ -86,6 +87,7 @@ class Dispatcher:
         self.registry.register(ScreenshotSkill())
         self.registry.register(ActiveWindowSkill())
         self.registry.register(WorkContextSkill())
+        self.registry.register(ScreenReadSkill())
         self.registry.register(GitSkill())
         self.registry.register(BuildLogSkill())
         self.registry.register(RepoIndexSkill())

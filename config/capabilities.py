@@ -106,6 +106,11 @@ CAPABILITY_INDEX: list[dict] = [
                      "what project am i working on?", "what's the current project?"],
     },
     {
+        "name": "SCREEN_READ",
+        "description": "read or describe what is currently on the user's screen (local OCR/vision; transient capture, nothing stored)",
+        "examples": ["what's on my screen?", "read my screen", "what error is on my screen?"],
+    },
+    {
         "name": "GENERAL",
         "description": "everything else: casual chat, opinions, knowledge questions",
         "examples": ["tell me a joke", "what is 2+2?"],

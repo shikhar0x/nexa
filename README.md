@@ -237,7 +237,7 @@ Key suites: `test_intent`, `test_hybrid_intent`, `test_prompt_regressions` (fixt
 - [x] **Phase 2 — Desktop Integration & Runtime Stabilization**: System monitoring, document reading/search, token streaming, notifications, safe actions, workspace state, deterministic failure recovery, and prompt regression tests.
 - [x] **Speed & Comprehension Pass**: Hybrid routing, small-talk fast path, lazy ChromaDB embeddings, deterministic system reports, and CPU-oriented prompt-size tuning.
 - [ ] **Phase 3 — Developer Mode**: Git integration, repository indexing, file watching, and build-log analysis.
-- [ ] **Phase 4 — Vision**: OCR, active-window context, and live screen understanding.
+- [x] **Phase 4 — Vision**: active-window context, grounded work-context answers, and screen reading (OCR fast path via tesseract; optional moondream vision Q&A).
 - [ ] **Phase 5 — Voice Interface**: STT (Whisper), TTS (Piper), and wake-word detection.
 - [ ] **Phase 6 — Intelligence Layer**: Habit learning and proactive context prediction.
 

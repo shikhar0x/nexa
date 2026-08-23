@@ -1,0 +1,154 @@
+"""Phase 4b: screen reading (OCR fast path + optional vision model).
+
+All backend seams (capture, OCR availability/extraction, vision
+availability/description) are mocked — tests never touch the real screen,
+tesseract, or Ollama.
+"""
+
+import unittest
+from unittest.mock import patch
+
+from runtime.intent import IntentRouter
+from skills import screen_read
+from skills.screen_read import ScreenReadSkill
+
+
+class TestScreenReadRouting(unittest.TestCase):
+    def setUp(self):
+        self.router = IntentRouter()
+
+    def test_screen_read_phrases(self):
+        positives = [
+            "what's on my screen",
+            "what is on my screen",
+            "what's on screen",
+            "read my screen",
+            "read the screen",
+            "what does my screen say",
+            "what's written on my screen",
+            "extract text from my screen",
+            "text on my screen",
+            "ocr my screen",
+            "what error is on my screen",
+        ]
+        for phrase in positives:
+            with self.subTest(phrase=phrase):
+                self.assertEqual(self.router.classify(phrase).intent_name, "SCREEN_READ")
+
+    def test_query_extraction(self):
+        res = self.router.classify("read my screen and tell me if the build failed")
+        self.assertEqual(res.intent_name, "SCREEN_READ")
+        self.assertEqual(res.args["query"], "and tell me if the build failed")
+
+        bare = self.router.classify("what's on my screen?")
+        self.assertEqual(bare.args["query"], "")
+
+    def test_tier_separation(self):
+        cases = {
+            "take a screenshot": "SCREENSHOT",
+            "what app am i using": "ACTIVE_WINDOW",
+            "what am i looking at": "WORK_CONTEXT",
+            "what is this project": "REPO_INDEX",
+        }
+        for phrase, expected in cases.items():
+            with self.subTest(phrase=phrase):
+                self.assertEqual(self.router.classify(phrase).intent_name, expected)
+
+
+class TestScreenReadSkill(unittest.TestCase):
+    def setUp(self):
+        self.skill = ScreenReadSkill()
+
+    def test_ocr_path_grounds_extracted_text(self):
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=True), \
+             patch.object(screen_read, "extract_text", return_value="FAILED tests/test_x.py"):
+            res = self.skill.execute({"query": ""}, None)
+        self.assertTrue(res.success)
+        self.assertTrue(res.use_llm)
+        self.assertTrue(res.allow_interpretation)
+        self.assertIn("FAILED tests/test_x.py", res.data["Extracted screen text"])
+
+    def test_ocr_long_text_is_truncated(self):
+        long_text = "x" * 5000
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=True), \
+             patch.object(screen_read, "extract_text", return_value=long_text):
+            res = self.skill.execute({}, None)
+        self.assertTrue(res.success)
+        self.assertLessEqual(len(res.data["Extracted screen text"]), 4100)
+        self.assertIn("truncated", res.data["Extracted screen text"])
+
+    def test_ocr_empty_escalates_to_vision(self):
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=True), \
+             patch.object(screen_read, "extract_text", return_value=""), \
+             patch.object(screen_read, "vision_available", return_value=True), \
+             patch.object(screen_read, "describe_screen",
+                          return_value="a desktop with a terminal and an editor open") as desc:
+            res = self.skill.execute({"query": "is anything running?"}, None)
+        self.assertTrue(res.success)
+        self.assertFalse(res.use_llm)  # vision answers are already natural language
+        self.assertIn("terminal and an editor", res.message)
+        desc.assert_called_once()
+        self.assertEqual(desc.call_args[0][1], "is anything running?")
+
+    def test_ocr_empty_no_vision_states_it(self):
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=True), \
+             patch.object(screen_read, "extract_text", return_value=""), \
+             patch.object(screen_read, "vision_available", return_value=False):
+            res = self.skill.execute({}, None)
+        self.assertTrue(res.success)
+        self.assertFalse(res.use_llm)
+        self.assertIn("readable text", res.message)
+
+    def test_vision_fallback_when_no_ocr(self):
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=False), \
+             patch.object(screen_read, "vision_available", return_value=True), \
+             patch.object(screen_read, "describe_screen", return_value="A settings dialog is open."):
+            res = self.skill.execute({"query": "what dialog is open?"}, None)
+        self.assertTrue(res.success)
+        self.assertEqual(res.message, "A settings dialog is open.")
+        self.assertEqual(res.data["backend"], "vision")
+
+    def test_no_backends_gives_install_hints(self):
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=False), \
+             patch.object(screen_read, "vision_available", return_value=False):
+            res = self.skill.execute({}, None)
+        self.assertFalse(res.success)
+        self.assertFalse(res.use_llm)
+        self.assertIn("tesseract-ocr", res.message)
+        self.assertIn("ollama pull", res.message)
+
+    def test_capture_failure_is_deterministic(self):
+        with patch.object(screen_read, "capture_screen_image", return_value=(False, "portal said no")):
+            res = self.skill.execute({}, None)
+        self.assertFalse(res.success)
+        self.assertFalse(res.use_llm)
+        self.assertIn("portal said no", res.message)
+
+    def test_temp_capture_is_cleaned_up(self):
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=True), \
+             patch.object(screen_read, "extract_text", return_value="some text"), \
+             patch.object(screen_read.shutil, "rmtree") as rm:
+            res = self.skill.execute({}, None)
+        self.assertTrue(res.success)
+        rm.assert_called_once()
+        self.assertIn("nexa-screen-", rm.call_args[0][0])
+
+    def test_ocr_crash_falls_to_vision_or_empty_path(self):
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=True), \
+             patch.object(screen_read, "extract_text", side_effect=RuntimeError("tesseract exploded")), \
+             patch.object(screen_read, "vision_available", return_value=False):
+            res = self.skill.execute({}, None)
+        self.assertTrue(res.success)  # graceful: empty-text path, not an exception
+        self.assertFalse(res.use_llm)
+
+
+if __name__ == "__main__":
+    unittest.main()

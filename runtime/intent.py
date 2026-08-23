@@ -75,6 +75,25 @@ REPO_INDEX_KEYWORDS = (
     "entry point", "tech stack",
 )
 
+# Screen reading / OCR phrases (Phase 4b). Distinct from SCREENSHOT (saves an
+# image file) and WORK_CONTEXT (names the focused window): these ask what the
+# screen CONTAINS.
+SCREEN_READ_KEYWORDS = (
+    "read my screen", "read the screen", "read this screen",
+    "what's on my screen", "whats on my screen", "what is on my screen",
+    "what's on screen", "whats on screen", "what is on screen",
+    "what does my screen say", "what does the screen say",
+    "what's written on my screen", "whats written on my screen",
+    "what is written on my screen",
+    "text on my screen", "text on the screen",
+    "extract text from my screen", "extract text from the screen",
+    "extract the text on my screen",
+    "ocr my screen", "ocr the screen", "ocr this",
+    "what error is on my screen", "what's the error on my screen",
+    "whats the error on my screen", "read the error on my screen",
+    "copy the error from my screen",
+)
+
 
 def _match_kw(kw: str, text: str) -> bool:
     """Check if keyword matches as a distinct whole phrase using regex word boundaries."""
@@ -314,6 +333,21 @@ class IntentRouter(BaseIntentClassifier):
             "what repo am i in", "which repo am i in",
         ), text):
             res = IntentResult(intent_name="WORK_CONTEXT")
+            logger.debug(f"Classified '{user_input}' -> {res}")
+            return res
+
+        # ── 2h. Screen Reading (OCR / vision — transient local capture) ──
+        if _match_any(SCREEN_READ_KEYWORDS, text):
+            # Keep any real question around the keyword for the vision model
+            # ("read my screen and tell me if the build failed" -> query kept).
+            query = user_input
+            for k in SCREEN_READ_KEYWORDS:
+                query = re.sub(rf"\b{re.escape(k)}\b", "", query, flags=re.IGNORECASE)
+            query = query.strip().strip(" ,;:—-?").strip()
+            res = IntentResult(
+                intent_name="SCREEN_READ",
+                args={"query": query},
+            )
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
 
