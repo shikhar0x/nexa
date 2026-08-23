@@ -229,16 +229,19 @@ python -m pytest tests/ -q
 
 Key suites: `test_intent`, `test_hybrid_intent`, `test_prompt_regressions` (fixtures in `tests/prompts.json`), `test_pending_action`, `test_filename_resolution`, plus the Developer Mode suites `test_repo_index`, `test_git_add`, `test_build_log`, and `test_file_watch`.
 
+---
+
 ## Roadmap
 
-- Phase 1 — Foundation: SQLite conversation log, ChromaDB vector-memory persistence, and CQRS MemorySkill.
-- Phase 2 — Desktop Integration & Runtime Stabilization: System monitoring, document reading/search, token streaming, notifications, safe actions, workspace state, deterministic failure recovery, and prompt regression tests.
-- Speed & Comprehension Pass: Hybrid routing, small-talk fast path, lazy ChromaDB embeddings, deterministic system reports, and CPU-oriented prompt-size tuning.
-- Phase 3 — Developer Mode: Git integration (status/diff/log/stage/commit/checkout, mutation-gated), repository indexing, in-session file watching with desktop notifications, and build-log analysis.
-- Phase 4 — Vision: OCR, active-window context, and live screen understanding.
-- Phase 5 — Voice Interface: STT (Whisper), TTS (Piper), and wake-word detection.
-- Phase 6 — Intelligence Layer: Habit learning and proactive context prediction.
+- [x] **Phase 1 — Foundation**: SQLite conversation log, ChromaDB vector-memory persistence, and CQRS `MemorySkill`.
+- [x] **Phase 2 — Desktop Integration & Runtime Stabilization**: System monitoring, document reading/search, token streaming, notifications, safe actions, workspace state, deterministic failure recovery, and prompt regression tests.
+- [x] **Speed & Comprehension Pass**: Hybrid routing, small-talk fast path, lazy ChromaDB embeddings, deterministic system reports, and CPU-oriented prompt-size tuning.
+- [ ] **Phase 3 — Developer Mode**: Git integration, repository indexing, file watching, and build-log analysis.
+- [ ] **Phase 4 — Vision**: OCR, active-window context, and live screen understanding.
+- [ ] **Phase 5 — Voice Interface**: STT (Whisper), TTS (Piper), and wake-word detection.
+- [ ] **Phase 6 — Intelligence Layer**: Habit learning and proactive context prediction.
+
+---
 
 ## License
-
-This project is licensed under the terms of the MIT License.
+This project is licensed under the terms of the [MIT License](LICENSE).

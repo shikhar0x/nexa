@@ -31,7 +31,11 @@ class FileWatchSkill(BaseSkill):
         raw_path = (args.get("path") or "").strip().strip("'\"")
 
         if action == "stop":
-            count, msg = file_watcher.stop_watch(raw_path or None)
+            target = None
+            if raw_path:
+                status, res_data = resolve_filename_or_path(raw_path, context=context)
+                target = str(res_data if status == "EXACT" else raw_path)
+            count, msg = file_watcher.stop_watch(target)
             return SkillResult(success=count > 0, message=msg, use_llm=False)
 
         if action == "status":

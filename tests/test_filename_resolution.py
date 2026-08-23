@@ -131,7 +131,8 @@ class TestAutomaticFilenameResolution(unittest.TestCase):
                     context.pending_action = res1.pending_action
 
                     # Turn 2: User selects option "1"
-                    turn2_output = self.dispatcher.process("1", context=context)
+                    with patch.object(self.dispatcher.llm, "stream", return_value=iter(["Content of file 1"])):
+                        turn2_output = self.dispatcher.process("1", context=context)
                     self.assertIsNone(context.pending_action)
                     self.assertIsNotNone(context.skill_result)
                     self.assertTrue(context.skill_result.success)

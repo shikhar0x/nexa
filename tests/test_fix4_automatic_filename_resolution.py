@@ -18,7 +18,7 @@ class TestFix4AutomaticFilenameResolution(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.base_path = Path(self.temp_dir.name)
+        self.base_path = Path(self.temp_dir.name).resolve()
 
         # Create mock directory structure
         self.dir_active = self.base_path / "ActiveWorkspace"

@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import shutil
 from datetime import datetime
@@ -58,6 +59,11 @@ def _xdg_portal_screenshot(out_path: str) -> tuple[bool, str]:
 
 def _find_screenshot_backends() -> list[str]:
     """Return available screenshot backends in priority order."""
+    if sys.platform == "darwin":
+        if shutil.which("screencapture"):
+            return ["screencapture"]
+        return []
+
     backends: list[str] = []
     if shutil.which("gdbus"):
         backends.append("gnome_shell_dbus")
@@ -73,23 +79,27 @@ class ScreenshotSkill(BaseSkill):
 
     name = "SCREENSHOT"
     description = "Captures the full screen to a PNG file in ~/Pictures/Screenshots."
-    permissions = ["CONFIRM_REQUIRED", "SYSTEM_CONTROL"]
+    permissions = (
+        ["SYSTEM_CONTROL"] if sys.platform == "darwin"
+        else ["CONFIRM_REQUIRED", "SYSTEM_CONTROL"]
+    )
     capability = Capability(
         name="screenshot",
         description="Captures a full-screen screenshot to a PNG file",
         supports=["screenshot", "capture screen", "screen capture"],
-        requires_confirmation=True,
+        requires_confirmation=sys.platform != "darwin",
         deterministic=True,
     )
 
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
-        if not confirm_action("take a full-screen screenshot"):
+        if sys.platform != "darwin" and not confirm_action("take a full-screen screenshot"):
             return SkillResult(
                 success=False,
                 message="Cancelled — screenshot was not taken.",
                 data={"status": "cancelled"},
                 use_llm=False,
             )
+
 
         shots_dir = os.path.join(os.path.expanduser("~"), "Pictures", "Screenshots")
         os.makedirs(shots_dir, exist_ok=True)
@@ -108,7 +118,20 @@ class ScreenshotSkill(BaseSkill):
         last_error = ""
         for backend in backends:
             try:
-                if backend == "gnome_shell_dbus":
+                if backend == "screencapture":
+                    res = subprocess.run(
+                        ["screencapture", "-x", out_path],
+                        capture_output=True, text=True, timeout=15,
+                    )
+                    if res.returncode == 0 and os.path.exists(out_path):
+                        return SkillResult(
+                            success=True,
+                            data={"path": out_path, "tool": backend},
+                            message=f"Screenshot saved to {out_path}",
+                            use_llm=False,
+                        )
+                    last_error = f"screencapture: {res.stderr.strip() or 'failed'}"
+                elif backend == "gnome_shell_dbus":
                     ok, err = _gnome_shell_screenshot(out_path)
                     if ok and os.path.exists(out_path):
                         return SkillResult(

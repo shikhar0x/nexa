@@ -42,7 +42,7 @@ class TestFileReaderSkill(unittest.TestCase):
             self.assertTrue(result.success)
             self.assertTrue(result.use_llm)  # Extracted text uses LLM for analysis
             self.assertIn("Hello Nexa!", result.message)
-            self.assertEqual(self.context.workspace_state.get("active_file"), temp_path)
+            self.assertEqual(os.path.realpath(self.context.workspace_state.get("active_file")), os.path.realpath(temp_path))
         finally:
             os.remove(temp_path)
 

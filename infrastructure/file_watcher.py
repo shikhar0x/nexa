@@ -80,7 +80,7 @@ def on_changes(path: str, changes: set) -> None:
 
 def start_watch(path: str) -> tuple[bool, str]:
     """Start watching a directory. Returns (ok, message)."""
-    path = os.path.abspath(os.path.expanduser(path))
+    path = os.path.realpath(os.path.abspath(os.path.expanduser(path)))
     with _lock:
         if path in _active:
             return False, f"Already watching {path}"
@@ -94,7 +94,7 @@ def stop_watch(path: str | None = None) -> tuple[int, str]:
     """Stop one watch (by path) or all watches. Returns (count_stopped, message)."""
     with _lock:
         if path:
-            norm = os.path.abspath(os.path.expanduser(path))
+            norm = os.path.realpath(os.path.abspath(os.path.expanduser(path)))
             targets = [w for p, w in _active.items() if p == norm]
         else:
             targets = list(_active.values())
