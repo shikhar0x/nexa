@@ -5,6 +5,8 @@ availability/description) are mocked — tests never touch the real screen,
 tesseract, or Ollama.
 """
 
+import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -148,6 +150,41 @@ class TestScreenReadSkill(unittest.TestCase):
             res = self.skill.execute({}, None)
         self.assertTrue(res.success)  # graceful: empty-text path, not an exception
         self.assertFalse(res.use_llm)
+
+
+class TestVisionImagePreparation(unittest.TestCase):
+    """Live-observed failure: moondream answered the degenerate token
+    "urn:1.0.0.0" to a full-resolution RGBA portal capture. describe_screen
+    must normalize (RGB + downscale) before hitting the vision model."""
+
+    def test_large_rgba_capture_is_downscaled_and_converted(self):
+        from PIL import Image
+        src = os.path.join(tempfile.mkdtemp(), "screen.png")
+        Image.new("RGBA", (2000, 1200), (1, 2, 3, 255)).save(src)
+        out = screen_read._prepare_image_for_vision(src)
+        self.assertNotEqual(out, src)
+        with Image.open(out) as im:
+            self.assertEqual(im.mode, "RGB")
+            self.assertEqual(im.size[0], 1280)
+            self.assertLessEqual(im.size[1], 1280)
+
+    def test_small_rgb_image_passes_through(self):
+        from PIL import Image
+        src = os.path.join(tempfile.mkdtemp(), "small.png")
+        Image.new("RGB", (800, 600), (7, 7, 7)).save(src)
+        self.assertEqual(screen_read._prepare_image_for_vision(src), src)
+
+    def test_unreadable_image_falls_back_to_original(self):
+        out = screen_read._prepare_image_for_vision("/nonexistent/screen.png")
+        self.assertEqual(out, "/nonexistent/screen.png")
+
+    def test_describe_screen_sends_the_prepared_image(self):
+        with patch.object(screen_read, "_prepare_image_for_vision", return_value="/tmp/prepared.jpg") as prep, \
+             patch.object(screen_read.ollama, "chat", return_value={"message": {"content": "blue"}}) as chat:
+            ans = screen_read.describe_screen("/tmp/raw.png", "q")
+        self.assertEqual(ans, "blue")
+        prep.assert_called_once_with("/tmp/raw.png")
+        self.assertEqual(chat.call_args.kwargs["messages"][0]["images"], ["/tmp/prepared.jpg"])
 
 
 if __name__ == "__main__":

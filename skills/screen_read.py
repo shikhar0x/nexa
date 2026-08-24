@@ -6,7 +6,7 @@ Two local backends, auto-detected at call time — neither is a hard dependency:
      Preferred whenever present: fast, and phi4-mini grounds answers in the
      extracted text like any other tool result.
   2. Vision Q&A: a local vision model served by Ollama
-     (settings.vision_model, default "moondream"). Slower on CPU (tens of
+     (settings.vision_model, default "llava-phi3"). Slower on CPU (tens of
      seconds) but understands non-textual content and answers visual
      questions. Used when OCR is missing or finds no readable text.
 
@@ -54,6 +54,35 @@ def vision_available() -> bool:
         return False
 
 
+def _prepare_image_for_vision(image_path: str, max_edge: int = 1280) -> str:
+    """Normalize a raw capture for the vision model.
+
+    Full-resolution portal captures (multi-megapixel RGBA PNGs) can make
+    small local vision models degenerate — observed live: moondream answered
+    the garbage token "urn:1.0.0.0" to a hi-res portal PNG. Downscaling to a
+    sane edge and converting to RGB JPEG makes the input reliably digestible
+    and is significantly faster on CPU. Returns the path to send; falls back
+    to the original path if normalization is not possible.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return image_path
+    try:
+        with Image.open(image_path) as img:
+            w, h = img.size
+            if max(w, h) <= max_edge and img.mode == "RGB":
+                return image_path
+            img = img.convert("RGB")
+            img.thumbnail((max_edge, max_edge), Image.LANCZOS)
+            out = os.path.join(os.path.dirname(image_path), "vision-input.jpg")
+            img.save(out, format="JPEG", quality=88)
+            return out
+    except Exception as e:
+        logger.warning(f"Vision image normalization failed, sending original: {e}")
+        return image_path
+
+
 def describe_screen(image_path: str, question: str = "") -> str:
     """Ask the local vision model about the captured screen image."""
     prompt = (
@@ -62,7 +91,7 @@ def describe_screen(image_path: str, question: str = "") -> str:
     )
     response = ollama.chat(
         model=settings.vision_model,
-        messages=[{"role": "user", "content": prompt, "images": [image_path]}],
+        messages=[{"role": "user", "content": prompt, "images": [_prepare_image_for_vision(image_path)]}],
         stream=False,
     )
     return (response.get("message", {}).get("content") or "").strip()

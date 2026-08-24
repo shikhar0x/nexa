@@ -10,7 +10,7 @@ class Settings:
     db_path: str = field(default_factory=lambda: os.getenv("NEXA_DB_PATH", "nexa.db"))
     chroma_path: str = field(default_factory=lambda: os.getenv("NEXA_CHROMA_PATH", "chroma_data"))
     # Optional local vision model for screen understanding (Phase 4b deep tier).
-    vision_model: str = field(default_factory=lambda: os.getenv("NEXA_VISION_MODEL", "moondream"))
+    vision_model: str = field(default_factory=lambda: os.getenv("NEXA_VISION_MODEL", "llava-phi3"))
     search_max_seconds: float = 5.0
     search_max_results: int = 20
     log_file: str = os.path.join("logs", "nexa.log")
