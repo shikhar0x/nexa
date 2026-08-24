@@ -110,6 +110,7 @@ class ScreenReadSkill(BaseSkill):
             "what's on my screen",
             "read my screen",
             "what error is on my screen",
+            "describe my screen",
         ],
         requires_confirmation=False,
         deterministic=False,
@@ -117,6 +118,11 @@ class ScreenReadSkill(BaseSkill):
 
     def execute(self, args: dict[str, Any], context: Any) -> SkillResult:
         query = (args.get("query") or "").strip()
+        # "describe my screen"-style requests go straight to the vision model:
+        # OCR would only relay raw UI chrome text (live case: browser with the
+        # Arena UI open — tesseract returned "Cc Agent Mode v 3% Agent Mode v"
+        # instead of a description of the page).
+        force_vision = bool(args.get("describe"))
         tmpdir = tempfile.mkdtemp(prefix="nexa-screen-")
         png_path = os.path.join(tmpdir, "screen.png")
         try:
@@ -129,7 +135,7 @@ class ScreenReadSkill(BaseSkill):
                     use_llm=False,
                 )
 
-            if ocr_available():
+            if ocr_available() and not force_vision:
                 try:
                     text = extract_text(png_path)
                 except Exception as e:
@@ -185,6 +191,40 @@ class ScreenReadSkill(BaseSkill):
                     success=False,
                     message="The vision model returned nothing useful from your screen.",
                     data={"error": "vision_empty", "backend": "vision"},
+                    use_llm=False,
+                )
+
+            if force_vision and ocr_available():
+                # Description requested but the vision model isn't installed —
+                # degrade to raw OCR text rather than failing.
+                try:
+                    text = extract_text(png_path)
+                except Exception as e:
+                    logger.warning(f"OCR failed: {e}")
+                    text = ""
+                if text:
+                    excerpt = text if len(text) <= 4000 else text[:4000] + "\n… [truncated]"
+                    return SkillResult(
+                        success=True,
+                        data={
+                            "Extracted screen text": excerpt,
+                            "Vision description unavailable": (
+                                f"the vision model ({settings.vision_model}) is not installed; "
+                                "answer the user's request from the raw OCR text instead — "
+                                f"`ollama pull {settings.vision_model}` enables real visual descriptions"
+                            ),
+                        },
+                        message="Description requested; vision model missing — OCR text instead.",
+                        use_llm=True,
+                        allow_interpretation=True,
+                    )
+                return SkillResult(
+                    success=False,
+                    message=(
+                        "I captured your screen, but describing it needs the vision model: "
+                        f"ollama pull {settings.vision_model}"
+                    ),
+                    data={"error": "vision_missing"},
                     use_llm=False,
                 )
 

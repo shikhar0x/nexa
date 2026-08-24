@@ -108,7 +108,7 @@ CAPABILITY_INDEX: list[dict] = [
     {
         "name": "SCREEN_READ",
         "description": "read or describe what is currently on the user's screen (local OCR/vision; transient capture, nothing stored)",
-        "examples": ["what's on my screen?", "read my screen", "what error is on my screen?"],
+        "examples": ["what's on my screen?", "read my screen", "what error is on my screen?", "describe my screen"],
     },
     {
         "name": "GENERAL",

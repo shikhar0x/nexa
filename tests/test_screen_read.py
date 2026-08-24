@@ -45,6 +45,18 @@ class TestScreenReadRouting(unittest.TestCase):
         bare = self.router.classify("what's on my screen?")
         self.assertEqual(bare.args["query"], "")
 
+    def test_describe_phrases_set_the_describe_flag(self):
+        for phrase in ("describe my screen", "describe what's on my screen", "what do you see on my screen"):
+            with self.subTest(phrase=phrase):
+                res = self.router.classify(phrase)
+                self.assertEqual(res.intent_name, "SCREEN_READ")
+                self.assertTrue(res.args["describe"])
+
+    def test_plain_screen_read_phrases_do_not_describe(self):
+        for phrase in ("what's on my screen", "read my screen", "read my screen and tell me if the build failed"):
+            with self.subTest(phrase=phrase):
+                self.assertFalse(self.router.classify(phrase).args["describe"])
+
     def test_tier_separation(self):
         cases = {
             "take a screenshot": "SCREENSHOT",
@@ -94,6 +106,32 @@ class TestScreenReadSkill(unittest.TestCase):
         self.assertIn("terminal and an editor", res.message)
         desc.assert_called_once()
         self.assertEqual(desc.call_args[0][1], "is anything running?")
+
+    def test_describe_flag_skips_ocr_entirely(self):
+        """Live trigger: screen full of browser text, user asked for a
+        DESCRIPTION — OCR must not get a turn at UI-chrome text."""
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=True), \
+             patch.object(screen_read, "extract_text", return_value="Cc Agent Mode v 3% Agent Mode v") as ocr, \
+             patch.object(screen_read, "vision_available", return_value=True), \
+             patch.object(screen_read, "describe_screen", return_value="a chat application in a browser") as desc:
+            res = self.skill.execute({"query": "", "describe": True}, None)
+        self.assertTrue(res.success)
+        self.assertFalse(res.use_llm)
+        self.assertIn("chat application", res.message)
+        ocr.assert_not_called()  # the whole point of the describe flag
+        desc.assert_called_once()
+
+    def test_describe_flag_without_vision_degrades_to_ocr(self):
+        with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \
+             patch.object(screen_read, "ocr_available", return_value=True), \
+             patch.object(screen_read, "extract_text", return_value="build finished ok"), \
+             patch.object(screen_read, "vision_available", return_value=False):
+            res = self.skill.execute({"query": "describe my screen", "describe": True}, None)
+        self.assertTrue(res.success)
+        self.assertTrue(res.use_llm)  # grounded OCR stand-in, honestly labelled
+        self.assertIn("build finished ok", res.data["Extracted screen text"])
+        self.assertIn("Vision description unavailable", res.data)
 
     def test_ocr_empty_no_vision_states_it(self):
         with patch.object(screen_read, "capture_screen_image", return_value=(True, "")), \

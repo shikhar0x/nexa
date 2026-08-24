@@ -94,6 +94,19 @@ SCREEN_READ_KEYWORDS = (
     "copy the error from my screen",
 )
 
+# Visual-description requests (Phase 4b): these want the VISION model's
+# semantic answer, not an OCR text dump. Routed to the same SCREEN_READ skill
+# with a `describe` flag so the OCR tier is skipped — live trigger: the
+# screen shows a text-heavy app (browser, Arena UI) and OCR would only relay
+# UI chrome ("Agent Mode" labels) instead of describing what's actually there.
+SCREEN_DESCRIBE_KEYWORDS = (
+    "describe my screen", "describe the screen", "describe this screen",
+    "describe what's on my screen", "describe whats on my screen",
+    "describe what is on my screen",
+    "what do you see on my screen", "what can you see on my screen",
+    "look at my screen",
+)
+
 
 def _match_kw(kw: str, text: str) -> bool:
     """Check if keyword matches as a distinct whole phrase using regex word boundaries."""
@@ -337,16 +350,21 @@ class IntentRouter(BaseIntentClassifier):
             return res
 
         # ── 2h. Screen Reading (OCR / vision — transient local capture) ──
-        if _match_any(SCREEN_READ_KEYWORDS, text):
-            # Keep any real question around the keyword for the vision model
-            # ("read my screen and tell me if the build failed" -> query kept).
+        if _match_any(SCREEN_READ_KEYWORDS + SCREEN_DESCRIBE_KEYWORDS, text):
+            # Visual-description phrasings set `describe` so the skill skips
+            # the OCR tier and goes straight to the vision model. Keep any
+            # real question around the keyword for the vision prompt ("read
+            # my screen and tell me if the build failed" -> query kept).
             query = user_input
-            for k in SCREEN_READ_KEYWORDS:
+            for k in SCREEN_READ_KEYWORDS + SCREEN_DESCRIBE_KEYWORDS:
                 query = re.sub(rf"\b{re.escape(k)}\b", "", query, flags=re.IGNORECASE)
             query = query.strip().strip(" ,;:—-?").strip()
             res = IntentResult(
                 intent_name="SCREEN_READ",
-                args={"query": query},
+                args={
+                    "query": query,
+                    "describe": _match_any(SCREEN_DESCRIBE_KEYWORDS, text),
+                },
             )
             logger.debug(f"Classified '{user_input}' -> {res}")
             return res
